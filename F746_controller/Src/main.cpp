@@ -44,6 +44,7 @@
 #include "LED.h"
 #include "switch.h"
 #include "RS485.h"
+#include "as5600.h"
 
 /* USER CODE END Includes */
 
@@ -141,7 +142,7 @@ int main(void)
     led1 = 1;
     HAL_Delay(500);
 //    rs485.putc('A');
-    int c = rs485.getc();
+//    int c = rs485.getc();
     if (c != EOF) led2 = led2 ^ 1;
     led1 = 0;
     HAL_Delay(500);

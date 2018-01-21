@@ -1,6 +1,7 @@
 #ifndef RS485_H
 #define RS485_H
 
+#include <stdarg.h>
 #include "main.h"
 #include "stm32f7xx_hal.h"
 
@@ -10,7 +11,7 @@ public:
   RS485(UART_HandleTypeDef *huart, DMA_HandleTypeDef *hdma_usart_rx, DMA_HandleTypeDef *hdma_usart_tx) :
     _huart(huart), _hdma_usart_rx(hdma_usart_rx), _hdma_usart_tx(hdma_usart_tx)
   {
-    HAL_GPIO_WritePin(RX485_REDE_GPIO_Port, RX485_REDE_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(RX485_REDE_GPIO_Port, RX485_REDE_Pin, GPIO_PIN_SET);
   }
   
   char putc(int c)
