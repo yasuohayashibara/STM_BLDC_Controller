@@ -91,6 +91,16 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN 0 */
 
+long time_ms = 0;
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if(htim->Instance == TIM3)
+  {
+    time_ms ++;
+  }
+}
+
 /* USER CODE END 0 */
 
 int main(void)
@@ -132,6 +142,7 @@ int main(void)
   LED led1(0), led2(1), led3(2);
   RS485 rs485(&huart1, &hdma_usart1_rx, &hdma_usart1_tx);
   AS5600 as5600(&hi2c2, &hdma_i2c2_rx, &hdma_i2c2_tx);
+  HAL_TIM_Base_Start_IT(&htim3);
 
   /* USER CODE END 2 */
 
@@ -141,12 +152,13 @@ int main(void)
   while (1)
   {
     led1 = 1;
-    if (!as5600.measureAngle()) led2 = 1;
+//    if (!as5600.measureAngle()) led2 = 1;
     HAL_Delay(500);
     
-    float angle;
-    if (!as5600.getAngle(&angle)) led3 = 1;
-    rs485.printf("%f\r\n", angle);    
+//    float angle;
+//    if (!as5600.getAngle(&angle)) led3 = 1;
+//    rs485.printf("%f\r\n", angle);    
+    led2 = (time_ms / 1000) & 1;    
     led1 = 0;
     HAL_Delay(500);
     
