@@ -129,8 +129,9 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-  LED led1(0), led2(1);
+  LED led1(0), led2(1), led3(2);
   RS485 rs485(&huart1, &hdma_usart1_rx, &hdma_usart1_tx);
+  AS5600 as5600(&hi2c2, &hdma_i2c2_rx, &hdma_i2c2_tx);
 
   /* USER CODE END 2 */
 
@@ -140,13 +141,14 @@ int main(void)
   while (1)
   {
     led1 = 1;
-    HAL_Delay(500);
-//    rs485.putc('A');
-//    int c = rs485.getc();
-    if (c != EOF) led2 = led2 ^ 1;
-    led1 = 0;
+    if (!as5600.measureAngle()) led2 = 1;
     HAL_Delay(500);
     
+    float angle;
+    if (!as5600.getAngle(&angle)) led3 = 1;
+    rs485.printf("%f\r\n", angle);    
+    led1 = 0;
+    HAL_Delay(500);
     
   /* USER CODE END WHILE */
 
@@ -211,7 +213,7 @@ void SystemClock_Config(void)
 
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_I2C2;
   PeriphClkInitStruct.Usart1ClockSelection = RCC_USART1CLKSOURCE_SYSCLK;
-  PeriphClkInitStruct.I2c2ClockSelection = RCC_I2C2CLKSOURCE_SYSCLK;
+  PeriphClkInitStruct.I2c2ClockSelection = RCC_I2C2CLKSOURCE_HSI;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -352,14 +354,14 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x00A02B91;
+  hi2c2.Init.Timing = 0x10911E24;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
   hi2c2.Init.OwnAddress2 = 0;
   hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
   hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_ENABLE;
   if (HAL_I2C_Init(&hi2c2) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -501,8 +503,8 @@ static void MX_USART1_UART_Init(void)
 static void MX_DMA_Init(void) 
 {
   /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream2_IRQn interrupt configuration */
