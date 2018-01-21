@@ -45,6 +45,7 @@
 #include "switch.h"
 #include "RS485.h"
 #include "as5600.h"
+#include "PWM.h"
 
 /* USER CODE END Includes */
 
@@ -143,6 +144,8 @@ int main(void)
   RS485 rs485(&huart1, &hdma_usart1_rx, &hdma_usart1_tx);
   AS5600 as5600(&hi2c2, &hdma_i2c2_rx, &hdma_i2c2_tx);
   HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+  PWM pwm0(0, &htim4); 
 
   /* USER CODE END 2 */
 
@@ -158,9 +161,10 @@ int main(void)
 //    float angle;
 //    if (!as5600.getAngle(&angle)) led3 = 1;
 //    rs485.printf("%f\r\n", angle);    
-    led2 = (time_ms / 1000) & 1;    
+    led2 = (time_ms / 1000) & 1;
     led1 = 0;
     HAL_Delay(500);
+    pwm0 = 0.1;
     
   /* USER CODE END WHILE */
 

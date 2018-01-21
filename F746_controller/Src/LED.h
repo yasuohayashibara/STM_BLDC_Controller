@@ -25,8 +25,7 @@ public:
   }
   
   operator int() { return read(); }
-
-    
+  
 private:
   int _no;
   static GPIO_TypeDef *type[4];
