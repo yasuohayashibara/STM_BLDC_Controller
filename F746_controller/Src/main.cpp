@@ -102,6 +102,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 }
 
+RS485 *p_rs485;
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART1)
+  {
+    p_rs485->setDirection(RS485::INPUT);
+    LED led4(3);
+    led4 = 1;
+  }
+}
+
 /* USER CODE END 0 */
 
 int main(void)
@@ -142,6 +154,7 @@ int main(void)
 
   LED led1(0), led2(1), led3(2);
   RS485 rs485(&huart1, &hdma_usart1_rx, &hdma_usart1_tx);
+  p_rs485 = &rs485;
   AS5600 as5600(&hi2c2, &hdma_i2c2_rx, &hdma_i2c2_tx);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
@@ -165,6 +178,7 @@ int main(void)
     led1 = 0;
     HAL_Delay(500);
     pwm0 = 0.1;
+    rs485.printf("A");    
     
   /* USER CODE END WHILE */
 
