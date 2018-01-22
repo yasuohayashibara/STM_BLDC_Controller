@@ -11,29 +11,40 @@
 class AS5600
 {
 public:
-  AS5600(I2C_HandleTypeDef *hi2c, DMA_HandleTypeDef *hdma_i2c_rx, DMA_HandleTypeDef *hdma_i2c_tx) :
-    _hi2c(hi2c), _hdma_i2c_rx(hdma_i2c_rx), _hdma_i2c_tx(hdma_i2c_tx)
-  {
-  }
+  AS5600(I2C_HandleTypeDef *hi2c, DMA_HandleTypeDef *hdma_i2c_rx, DMA_HandleTypeDef *hdma_i2c_tx);
+    
+  void setOffserAngleRad(float value) { _angle0 = value; }
   
-  bool measureAngle()
-  {
-    _tx_buf[0] = ANGLE_ADRESS;
-//    return HAL_I2C_Master_Transmit_DMA(_hi2c, SLAVE_ADRESS << 1, _tx_buf, 1) == HAL_OK ? true : false;
-    return HAL_I2C_Master_Transmit(_hi2c, SLAVE_ADRESS << 1, _tx_buf, 1, 1000) == HAL_OK ? true : false;
-  }
+  void startMeasure();
   
-  bool getAngle(float *angle)
-  {
-//    if (HAL_I2C_Master_Receive_DMA(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2) == HAL_OK) {
-    if (HAL_I2C_Master_Receive(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2, 1000) == HAL_OK) {
-      *angle = ((_rx_buf[0] << 8) + _rx_buf[1]) * 0.087912087f * M_PI / 180.0f;
-      return true;
-    }
-    return false;
-  }
+  void stopMeasure();
+  
+  float read() { return _angle; }
+  
+  operator float() { return read(); }
+  
+  float getAngleRad() { return _angle; }
+  
+  float getAngleDeg() { return _angle * 180.0f / M_PI; }
+  
+  bool getError() { return _error; }
+  
+  void resetError() { _error = false; }
+  
+  bool sendMeasureAngleRequest();
+  
+  bool receiveAngle();
+  
+  bool _do_measure;
+  
+  bool _error;
   
 private:
+  float _angle;
+  float _angle0;
+
+  float maxPI(float angle);
+  
   I2C_HandleTypeDef *_hi2c;
   DMA_HandleTypeDef *_hdma_i2c_rx;
   DMA_HandleTypeDef *_hdma_i2c_tx;
