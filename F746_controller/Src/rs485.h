@@ -14,50 +14,19 @@ public:
   };
 
 public:
-  RS485(UART_HandleTypeDef *huart, DMA_HandleTypeDef *hdma_usart_rx, DMA_HandleTypeDef *hdma_usart_tx) :
-    _huart(huart), _hdma_usart_rx(hdma_usart_rx), _hdma_usart_tx(hdma_usart_tx)
-  {
-    setDirection(INPUT);
-  }
+  RS485(UART_HandleTypeDef *huart, DMA_HandleTypeDef *hdma_usart_rx, DMA_HandleTypeDef *hdma_usart_tx);
+
+  void setDirection(int status);
+
+  char putc(int c);
   
-  void setDirection(int status) {
-    GPIO_PinState pin_state = status == OUTPUT ? GPIO_PIN_SET : GPIO_PIN_RESET;
-    HAL_GPIO_WritePin(RX485_REDE_GPIO_Port, RX485_REDE_Pin, pin_state);
-  }
+  int getc();
   
-  char putc(int c)
-  {
-    _tx_buf[0] = c;
-    HAL_StatusTypeDef res = HAL_UART_Transmit_DMA(_huart, _tx_buf, 1);
-    if (res == HAL_OK) setDirection(OUTPUT);
-    return res == HAL_OK ? c : EOF;
-  }
+  int read(char *buf);
   
-  int getc()
-  {
-    return HAL_UART_Receive_DMA(_huart, _rx_buf, 1) == HAL_OK ? _rx_buf[0] : EOF;
-  }
+  int write(const void* buffer, size_t length);
   
-  int write(const void* buffer, size_t length)
-  {
-    unsigned char *buf = (unsigned char *)buffer;
-    unsigned char *tx_buf = _tx_buf;
-    for(int i = 0; i < length; i ++){
-      *tx_buf ++ = *buf ++;
-    }
-    return HAL_UART_Transmit_DMA(_huart, _tx_buf, length) == HAL_OK ? length : 0;
-  }
-  
-  int printf(const char* format, ...)
-  {
-    va_list arg;
-    va_start(arg, format);
-    char buf[256];
-    int res = vsprintf(buf, format, arg);
-    va_end(arg);
-    write(buf, res);
-    return res;
-  }
+  int printf(const char* format, ...);
 
 private:
   UART_HandleTypeDef *_huart;
