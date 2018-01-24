@@ -7,7 +7,7 @@ void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *huart)
   if (huart->Instance == I2C2)
   {
     if (p_AS5600->_do_measure)
-      if (!p_AS5600->receiveAngle()) p_AS5600->_error = true;
+      if (!p_AS5600->receiveAngleRequest()) p_AS5600->_error = true;
   }
 }
 
@@ -15,6 +15,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *huart)
 {
   if (huart->Instance == I2C2)
   {
+    p_AS5600->receiveAngle();
     if (!p_AS5600->sendMeasureAngleRequest()) p_AS5600->_error = true;
   }
 }
@@ -41,17 +42,16 @@ bool AS5600::sendMeasureAngleRequest()
 {
   _tx_buf[0] = ANGLE_ADRESS;
   return HAL_I2C_Master_Transmit_DMA(_hi2c, SLAVE_ADRESS << 1, _tx_buf, 1) == HAL_OK ? true : false;
-//  return HAL_I2C_Master_Transmit(_hi2c, SLAVE_ADRESS << 1, _tx_buf, 1, 1000) == HAL_OK ? true : false;
 }
-  
-bool AS5600::receiveAngle()
+
+bool AS5600::receiveAngleRequest()
 {
-  if (HAL_I2C_Master_Receive_DMA(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2) == HAL_OK) {
-//  if (HAL_I2C_Master_Receive(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2, 1000) == HAL_OK) {
-    _angle = maxPI(((_rx_buf[0] << 8) + _rx_buf[1]) * 0.087912087f * M_PI / 180.0f - _angle0);
-    return true;
-  }
-  return false;
+  return HAL_I2C_Master_Receive_DMA(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2) == HAL_OK ? true : false;
+}
+
+void AS5600::receiveAngle()
+{
+  _angle = maxPI(((_rx_buf[0] << 8) + _rx_buf[1]) * 0.087912087f * M_PI / 180.0f - _angle0);
 }
 
 float AS5600::maxPI(float angle)

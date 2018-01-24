@@ -33,8 +33,10 @@ public:
   
   bool sendMeasureAngleRequest();
   
-  bool receiveAngle();
+  bool receiveAngleRequest();
   
+  void receiveAngle();
+
   bool _do_measure;
   
   bool _error;
