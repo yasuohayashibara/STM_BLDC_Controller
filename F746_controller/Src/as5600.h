@@ -11,7 +11,7 @@
 class AS5600
 {
 public:
-  AS5600(I2C_HandleTypeDef *hi2c, DMA_HandleTypeDef *hdma_i2c_rx, DMA_HandleTypeDef *hdma_i2c_tx);
+  AS5600(I2C_HandleTypeDef *hi2c);
     
   void setOffserAngleRad(float value) { _angle0 = value; }
   
@@ -48,8 +48,6 @@ private:
   float maxPI(float angle);
   
   I2C_HandleTypeDef *_hi2c;
-  DMA_HandleTypeDef *_hdma_i2c_rx;
-  DMA_HandleTypeDef *_hdma_i2c_tx;
 
   static const int TX_BUF_SIZE = 16;
   static const int RX_BUF_SIZE = 16;

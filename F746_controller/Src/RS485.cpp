@@ -12,8 +12,8 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
   }
 }
 
-RS485::RS485(UART_HandleTypeDef *huart, DMA_HandleTypeDef *hdma_usart_rx, DMA_HandleTypeDef *hdma_usart_tx) :
-  _huart(huart), _hdma_usart_rx(hdma_usart_rx), _hdma_usart_tx(hdma_usart_tx)
+RS485::RS485(UART_HandleTypeDef *huart) :
+  _huart(huart)
 {
   setDirection(INPUT);
   p_rs485 = this;

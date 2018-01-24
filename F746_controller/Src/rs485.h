@@ -14,7 +14,7 @@ public:
   };
 
 public:
-  RS485(UART_HandleTypeDef *huart, DMA_HandleTypeDef *hdma_usart_rx, DMA_HandleTypeDef *hdma_usart_tx);
+  RS485(UART_HandleTypeDef *huart);
 
   void setDirection(int status);
 
@@ -30,8 +30,6 @@ public:
 
 private:
   UART_HandleTypeDef *_huart;
-  DMA_HandleTypeDef *_hdma_usart_rx;
-  DMA_HandleTypeDef *_hdma_usart_tx;
 
   static const int TX_BUF_SIZE = 16;
   static const int RX_BUF_SIZE = 256;

@@ -20,9 +20,8 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *huart)
   }
 }
 
-AS5600::AS5600(I2C_HandleTypeDef *hi2c, DMA_HandleTypeDef *hdma_i2c_rx, DMA_HandleTypeDef *hdma_i2c_tx) :
-  _do_measure(false), _error(false), _angle(0), _angle0(0),
-  _hi2c(hi2c), _hdma_i2c_rx(hdma_i2c_rx), _hdma_i2c_tx(hdma_i2c_tx)
+AS5600::AS5600(I2C_HandleTypeDef *hi2c) :
+  _do_measure(false), _error(false), _angle(0), _angle0(0), _hi2c(hi2c)
 {
   p_AS5600 = this;
 }
