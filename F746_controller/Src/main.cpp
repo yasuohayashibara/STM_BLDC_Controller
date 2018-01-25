@@ -41,6 +41,8 @@
 #include "stm32f7xx_hal.h"
 
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <string.h>
 #include "LED.h"
 #include "switch.h"
 #include "RS485.h"
@@ -58,6 +60,7 @@ I2C_HandleTypeDef hi2c2;
 DMA_HandleTypeDef hdma_i2c2_rx;
 DMA_HandleTypeDef hdma_i2c2_tx;
 
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
@@ -78,9 +81,10 @@ static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_ADC3_Init(void);
 static void MX_I2C2_Init(void);
-static void MX_USART1_UART_Init(void);
-static void MX_TIM4_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM4_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_TIM2_Init(void);
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
@@ -102,18 +106,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 }
 
-RS485 *p_rs485;
-
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
-{
-  if (huart->Instance == USART1)
-  {
-    p_rs485->setDirection(RS485::INPUT);
-    LED led4(3);
-    led4 = 1;
-  }
-}
-
 /* USER CODE END 0 */
 
 int main(void)
@@ -129,7 +121,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -146,16 +138,16 @@ int main(void)
   MX_ADC2_Init();
   MX_ADC3_Init();
   MX_I2C2_Init();
-  MX_USART1_UART_Init();
-  MX_TIM4_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
+  MX_USART1_UART_Init();
+  MX_TIM2_Init();
 
   /* USER CODE BEGIN 2 */
 
   LED led1(0), led2(1), led3(2);
-  RS485 rs485(&huart1, &hdma_usart1_rx, &hdma_usart1_tx);
-  p_rs485 = &rs485;
-  AS5600 as5600(&hi2c2, &hdma_i2c2_rx, &hdma_i2c2_tx);
+  RS485 rs485(&huart1);
+  AS5600 as5600(&hi2c2);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   PWM pwm0(0, &htim4); 
@@ -164,21 +156,17 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  
+  as5600.startMeasure();
+  rs485.printf("START\r\n");    
   while (1)
   {
+    HAL_Delay(100);
     led1 = 1;
-//    if (!as5600.measureAngle()) led2 = 1;
-    HAL_Delay(500);
-    
-//    float angle;
-//    if (!as5600.getAngle(&angle)) led3 = 1;
-//    rs485.printf("%f\r\n", angle);    
-    led2 = (time_ms / 1000) & 1;
-    led1 = 0;
-    HAL_Delay(500);
-    pwm0 = 0.1;
-    rs485.printf("A");    
+    float angle = as5600.getAngleDeg();
+    led2 = 1;
+    char buf[100];
+    sprintf(buf, "%f\r\n", angle);
+    rs485.write(buf, strlen(buf));
     
   /* USER CODE END WHILE */
 
@@ -267,6 +255,7 @@ static void MX_ADC1_Init(void)
 
   ADC_MultiModeTypeDef multimode;
   ADC_ChannelConfTypeDef sConfig;
+  ADC_InjectionConfTypeDef sConfigInjected;
 
     /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
     */
@@ -307,6 +296,22 @@ static void MX_ADC1_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+    /**Configures for the selected ADC injected channel its corresponding rank in the sequencer and its sample time 
+    */
+  sConfigInjected.InjectedChannel = ADC_CHANNEL_10;
+  sConfigInjected.InjectedRank = 1;
+  sConfigInjected.InjectedNbrOfConversion = 1;
+  sConfigInjected.InjectedSamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfigInjected.ExternalTrigInjecConvEdge = ADC_EXTERNALTRIGINJECCONVEDGE_RISING;
+  sConfigInjected.ExternalTrigInjecConv = ADC_EXTERNALTRIGINJECCONV_T2_TRGO;
+  sConfigInjected.AutoInjectedConv = DISABLE;
+  sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
+  sConfigInjected.InjectedOffset = 0;
+  if (HAL_ADCEx_InjectedConfigChannel(&hadc1, &sConfigInjected) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
 }
 
 /* ADC2 init function */
@@ -314,6 +319,7 @@ static void MX_ADC2_Init(void)
 {
 
   ADC_ChannelConfTypeDef sConfig;
+  ADC_InjectionConfTypeDef sConfigInjected;
 
     /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
     */
@@ -342,6 +348,20 @@ static void MX_ADC2_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+    /**Configures for the selected ADC injected channel its corresponding rank in the sequencer and its sample time 
+    */
+  sConfigInjected.InjectedChannel = ADC_CHANNEL_11;
+  sConfigInjected.InjectedRank = 1;
+  sConfigInjected.InjectedNbrOfConversion = 1;
+  sConfigInjected.InjectedSamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfigInjected.AutoInjectedConv = DISABLE;
+  sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
+  sConfigInjected.InjectedOffset = 0;
+  if (HAL_ADCEx_InjectedConfigChannel(&hadc2, &sConfigInjected) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
 }
 
 /* ADC3 init function */
@@ -349,6 +369,7 @@ static void MX_ADC3_Init(void)
 {
 
   ADC_ChannelConfTypeDef sConfig;
+  ADC_InjectionConfTypeDef sConfigInjected;
 
     /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
     */
@@ -377,6 +398,20 @@ static void MX_ADC3_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+    /**Configures for the selected ADC injected channel its corresponding rank in the sequencer and its sample time 
+    */
+  sConfigInjected.InjectedChannel = ADC_CHANNEL_12;
+  sConfigInjected.InjectedRank = 1;
+  sConfigInjected.InjectedNbrOfConversion = 1;
+  sConfigInjected.InjectedSamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfigInjected.AutoInjectedConv = DISABLE;
+  sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
+  sConfigInjected.InjectedOffset = 0;
+  if (HAL_ADCEx_InjectedConfigChannel(&hadc3, &sConfigInjected) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
 }
 
 /* I2C2 init function */
@@ -384,14 +419,14 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x10911E24;
+  hi2c2.Init.Timing = 0x00200105;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
   hi2c2.Init.OwnAddress2 = 0;
   hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
   hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_ENABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
   if (HAL_I2C_Init(&hi2c2) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -407,6 +442,39 @@ static void MX_I2C2_Init(void)
     /**Configure Digital filter 
     */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/* TIM2 init function */
+static void MX_TIM2_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 216-1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 10-1;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
