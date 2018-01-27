@@ -49,6 +49,7 @@
 #include "AS5600.h"
 #include "PWM.h"
 #include "ADConv.h"
+#include "Parser.h"
 
 /* USER CODE END Includes */
 
