@@ -46,8 +46,9 @@
 #include "LED.h"
 #include "switch.h"
 #include "RS485.h"
-#include "as5600.h"
+#include "AS5600.h"
 #include "PWM.h"
+#include "ADConv.h"
 
 /* USER CODE END Includes */
 
@@ -106,7 +107,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 }
 
-/* USER CODE END 0 */
+LED *pLED = NULL;
+int val;
+
+void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
+{
+  if (pLED != NULL) pLED->write(pLED->read() ^ 1);
+  val = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1);
+}
 
 int main(void)
 {
@@ -146,11 +154,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   LED led1(0), led2(1), led3(2);
+  pLED = &led3;
   RS485 rs485(&huart1);
   AS5600 as5600(&hi2c2);
+  HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   PWM pwm0(0, &htim4); 
+  ADConv adc(&hadc1, &hadc2, &hadc3);
 
   /* USER CODE END 2 */
 
@@ -158,15 +169,24 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   as5600.startMeasure();
   rs485.printf("START\r\n");    
+  HAL_Delay(100);
+  HAL_GPIO_WritePin(L1_GPIO_Port, L1_Pin, GPIO_PIN_SET);
+  adc.sendStartMeasure();
   while (1)
   {
     HAL_Delay(100);
-    led1 = 1;
+    led1 = led1 ^ 1;
+
     float angle = as5600.getAngleDeg();
-    led2 = 1;
+    adc.recvMeasuredVoltage();
+    float vol1 = adc.getVoltage(0);
+    float vol2 = adc.getVoltage(1);
+    float vol3 = adc.getVoltage(2);
+
     char buf[100];
-    sprintf(buf, "%f\r\n", angle);
+    sprintf(buf, "%f %f %f %f\r\n", angle, vol1, vol2, vol3);
     rs485.write(buf, strlen(buf));
+    adc.sendStartMeasure();
     
   /* USER CODE END WHILE */
 
@@ -305,7 +325,7 @@ static void MX_ADC1_Init(void)
   sConfigInjected.ExternalTrigInjecConvEdge = ADC_EXTERNALTRIGINJECCONVEDGE_RISING;
   sConfigInjected.ExternalTrigInjecConv = ADC_EXTERNALTRIGINJECCONV_T2_TRGO;
   sConfigInjected.AutoInjectedConv = DISABLE;
-  sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
+  sConfigInjected.InjectedDiscontinuousConvMode = ENABLE;
   sConfigInjected.InjectedOffset = 0;
   if (HAL_ADCEx_InjectedConfigChannel(&hadc1, &sConfigInjected) != HAL_OK)
   {
@@ -355,7 +375,7 @@ static void MX_ADC2_Init(void)
   sConfigInjected.InjectedNbrOfConversion = 1;
   sConfigInjected.InjectedSamplingTime = ADC_SAMPLETIME_3CYCLES;
   sConfigInjected.AutoInjectedConv = DISABLE;
-  sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
+  sConfigInjected.InjectedDiscontinuousConvMode = ENABLE;
   sConfigInjected.InjectedOffset = 0;
   if (HAL_ADCEx_InjectedConfigChannel(&hadc2, &sConfigInjected) != HAL_OK)
   {
@@ -405,7 +425,7 @@ static void MX_ADC3_Init(void)
   sConfigInjected.InjectedNbrOfConversion = 1;
   sConfigInjected.InjectedSamplingTime = ADC_SAMPLETIME_3CYCLES;
   sConfigInjected.AutoInjectedConv = DISABLE;
-  sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
+  sConfigInjected.InjectedDiscontinuousConvMode = ENABLE;
   sConfigInjected.InjectedOffset = 0;
   if (HAL_ADCEx_InjectedConfigChannel(&hadc3, &sConfigInjected) != HAL_OK)
   {
@@ -472,8 +492,8 @@ static void MX_TIM2_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_ENABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -506,7 +526,7 @@ static void MX_TIM3_Init(void)
   }
 
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_ENABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
