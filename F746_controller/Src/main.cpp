@@ -50,6 +50,7 @@
 #include "PWM.h"
 #include "ADConv.h"
 #include "Parser.h"
+#include "STM_BLDCMotor.h"
 
 /* USER CODE END Includes */
 
@@ -108,15 +109,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 }
 
-LED *pLED = NULL;
-int val;
-
-void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
-{
-  if (pLED != NULL) pLED->write(pLED->read() ^ 1);
-  val = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1);
-}
-
 int main(void)
 {
 
@@ -155,14 +147,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   LED led1(0), led2(1), led3(2);
-  pLED = &led3;
   RS485 rs485(&huart1);
   AS5600 as5600(&hi2c2);
-  HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
-  PWM pwm0(0, &htim4); 
   ADConv adc(&hadc1, &hadc2, &hadc3);
+  STM_BLDCMotor motor(&htim4, &as5600);
 
   /* USER CODE END 2 */
 
@@ -171,7 +160,6 @@ int main(void)
   as5600.startMeasure();
   rs485.printf("START\r\n");    
   HAL_Delay(100);
-  HAL_GPIO_WritePin(L1_GPIO_Port, L1_Pin, GPIO_PIN_SET);
   adc.sendStartMeasure();
   while (1)
   {
