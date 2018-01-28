@@ -56,9 +56,8 @@ int RS485::write(const void* buffer, size_t length)
     *tx_buf ++ = *buf ++;
   }
   setDirection(OUTPUT);
-  HAL_StatusTypeDef res = HAL_UART_Transmit_DMA(_huart, _tx_buf, length);
-//  if (res == HAL_OK) setDirection(OUTPUT);
-  return res == HAL_OK ? length : 0;
+  while(HAL_UART_Transmit_DMA(_huart, _tx_buf, length) != HAL_OK);
+  return length;
 }
   
 int RS485::printf(const char* format, ...)
