@@ -153,7 +153,7 @@ int main(void)
   AS5600 as5600(&hi2c2);
   HAL_TIM_Base_Start_IT(&htim3);
   ADConv adc(&hadc1, &hadc2, &hadc3);
-//  STM_BLDCMotor motor(&htim4, &as5600);
+  STM_BLDCMotor motor(&htim4, &as5600);
 
   /* USER CODE END 2 */
 

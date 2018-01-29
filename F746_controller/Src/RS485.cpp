@@ -1,14 +1,14 @@
 #include "RS485.h"
 
 RS485 *p_rs485;
+char temp_int[256];
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART1)
   {
     p_rs485->setDirection(RS485::INPUT);
-    char temp[256];
-    p_rs485->read(temp);
+    p_rs485->read(temp_int);
   }
 }
 
