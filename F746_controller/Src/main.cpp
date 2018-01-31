@@ -111,6 +111,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   } else if(htim->Instance == TIM4)
   {
     if (p_motor != NULL){
+      p_motor->update();
       int hole_state = p_motor->getHoleState();
       if (hole_state != prev_hole_state){
         p_motor->status_changed();
@@ -119,6 +120,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
   }
 }
+
+//float adconv[100][3];
 
 /* USER CODE END 0 */
 
@@ -174,12 +177,14 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   HAL_Delay(100);
   as5600.startMeasure();
-  rs485.printf("START\r\n");    
+  rs485.printf("START\r\n");
   adc.sendStartMeasure();
   long prev_time_ms = time_ms;
   HAL_Delay(100);
   motor.servoOn();
   motor = 0.1;
+  float prev_integrated_angle = 0.0;
+  int ad_no = -1;
   for(long count = 0; ; count ++)
   {
     float angle = as5600.getAngleDeg();
@@ -187,10 +192,33 @@ int main(void)
     float vol1 = adc.getVoltage(0);
     float vol2 = adc.getVoltage(1);
     float vol3 = adc.getVoltage(2);
-
+/*
+    if (ad_no >= 0){
+      adconv[ad_no][0] = vol1;
+      adconv[ad_no][1] = vol2;
+      adconv[ad_no][2] = vol3;
+      ad_no ++;
+      if (ad_no >= 100){
+        for(int i = 0; i < 100;i ++){
+          char buf[100];
+          sprintf(buf, "%f %f %f\r\n", adconv[i][0], adconv[i][1], adconv[i][2]);
+          rs485.write(buf, strlen(buf));
+        }
+        break;
+      }
+    }
+*/
     if (count % 100 == 0){
+      float ratio = motor;
+      float integrated_angle = motor.getIntegratedAngleRad();
+      float rot = (integrated_angle - prev_integrated_angle) / (2 * M_PI) * 10;
+      prev_integrated_angle = integrated_angle;
       char buf[100];
-      sprintf(buf, "%f %d %f %f %f\r\n", angle, prev_hole_state, vol1, vol2, vol3);
+      sprintf(buf, "%f %f %d %f %f %f\r\n", ratio, rot, prev_hole_state, vol1, vol2, vol3);
+      int c = rs485.getc();
+      if (c == 'a' && motor <  0.5f) motor = motor + 0.1f;
+      if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
+      if (c == 'm') ad_no = 0;
       rs485.write(buf, strlen(buf));
       adc.sendStartMeasure();
     }

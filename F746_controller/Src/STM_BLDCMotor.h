@@ -46,10 +46,12 @@ public:
 
     float read();
     
+    bool update();
+
     int getHoleState();
 
-    int getState();
-
+    float getIntegratedAngleRad();
+    
     void status_changed(void);
 
     void resetHoleSensorCount();
@@ -83,8 +85,8 @@ private:
     PWM _wh;
     Output _wl;
 
-    double _value;
-    double _max_ratio;
+    float _value;
+    float _max_ratio;
     bool _enable;
     int _hole_state_no;
     float _hole_state0_angle;

@@ -17,6 +17,13 @@
 #define PWM_FREQUENCY 20000.0
 #define SAMPLING_TIME 0.0001
 
+float maxPI(float angle_rad)
+{
+  while(angle_rad >  M_PI) angle_rad -= 2 * M_PI;
+  while(angle_rad < -M_PI) angle_rad += 2 * M_PI;
+  return angle_rad;
+}
+
 int STM_BLDCMotor::switching_table[6] [3] = {
     { 0, -1, 1 }, // STATE1
     { 1, -1, 0 }, // STATE2
@@ -31,9 +38,10 @@ STM_BLDCMotor::STM_BLDCMotor(TIM_HandleTypeDef *htim, AS5600 *as5600) :
   _uh(_htim, TIM_CHANNEL_1), _ul(L1_GPIO_Port, L1_Pin),
   _vh(_htim, TIM_CHANNEL_2), _vl(L2_GPIO_Port, L2_Pin),
   _wh(_htim, TIM_CHANNEL_3), _wl(L3_GPIO_Port, L3_Pin),
-  _max_ratio(0.5), _enable(false), _as5600(as5600),
+  _value(0.0f), _max_ratio(0.5f), _enable(false), 
   _hole_state_no(0), _hole_state0_angle(TEST_MOTOR_HOLE0_ANGLE),
-  _angle(0), _integral_angle(0), _prev_angle(0)
+  _angle(0), _integral_angle(0), _prev_angle(0),
+  _as5600(as5600)
 {
   HAL_TIM_PWM_Start(_htim, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(_htim, TIM_CHANNEL_2);
@@ -63,6 +71,7 @@ void STM_BLDCMotor::setMaxDutyRatio(float max_ratio)
 void STM_BLDCMotor::write(double value)
 {
   _value = max(min(value, _max_ratio), -_max_ratio);
+  status_changed();
 }
 
 float STM_BLDCMotor::read()
@@ -70,29 +79,33 @@ float STM_BLDCMotor::read()
   return _value;
 }
 
-int STM_BLDCMotor::getHoleState()
+bool STM_BLDCMotor::update()
 {
   const float angle_width = 2 * M_PI / 42;
-  float angle = _hole_state0_angle + angle_width/2 + 2 * M_PI - _as5600->getAngleRad();
-  int hole_no = (int)(angle / angle_width);
+  _angle = _hole_state0_angle + angle_width/2 + 2 * M_PI - _as5600->getAngleRad();
+  float angle_diff = maxPI(_angle - _prev_angle);
+  _prev_angle = _angle;
+  _integral_angle += angle_diff;
+  int hole_no = (int)(_angle / angle_width);
   _hole_state_no = hole_no % 6;
 
+  return true;
+}
+
+int STM_BLDCMotor::getHoleState()
+{
   return _hole_state_no;
 }
 
-int STM_BLDCMotor::getState()
+float STM_BLDCMotor::getIntegratedAngleRad()
 {
-  return _hole_state_no;
+  return _integral_angle;
 }
 
 void STM_BLDCMotor::status_changed(void)
 {
-  _hole_state_no = 0;
-  int dir = (_value >= 0.0) ? 1 : -2;
-  
-  getHoleState();
+  int dir = (_value >= 0.0f) ? 1 : -2;
   int next_state = (_hole_state_no + dir + 6) % 6;
-
   if (_enable){
     drive(switching_table[next_state][0],
             switching_table[next_state][1],
