@@ -29,7 +29,6 @@ char RS485::putc(int c)
   _tx_buf[0] = c;
   setDirection(OUTPUT);
   HAL_StatusTypeDef res = HAL_UART_Transmit_DMA(_huart, _tx_buf, 1);
-//  if (res != HAL_OK) setDirection(OUTPUT);
   return res == HAL_OK ? c : EOF;
 }
   

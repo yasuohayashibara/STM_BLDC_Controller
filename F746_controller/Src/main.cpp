@@ -99,13 +99,24 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN 0 */
 
-long time_ms = 0;
+volatile long time_ms = 0;
+STM_BLDCMotor *p_motor = NULL;
+int prev_hole_state = -1;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == TIM3)
   {
     time_ms ++;
+  } else if(htim->Instance == TIM4)
+  {
+    if (p_motor != NULL){
+      int hole_state = p_motor->getHoleState();
+      if (hole_state != prev_hole_state){
+        p_motor->status_changed();
+        prev_hole_state = hole_state;
+      }
+    }
   }
 }
 
@@ -152,8 +163,10 @@ int main(void)
   RS485 rs485(&huart1);
   AS5600 as5600(&hi2c2);
   HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
   STM_BLDCMotor motor(&htim4, &as5600);
+  p_motor = &motor;
 
   /* USER CODE END 2 */
 
@@ -163,21 +176,30 @@ int main(void)
   as5600.startMeasure();
   rs485.printf("START\r\n");    
   adc.sendStartMeasure();
-  while (1)
+  long prev_time_ms = time_ms;
+  HAL_Delay(100);
+  motor.servoOn();
+  motor = 0.1;
+  for(long count = 0; ; count ++)
   {
-    HAL_Delay(100);
-    led1 = led1 ^ 1;
-
     float angle = as5600.getAngleDeg();
     adc.recvMeasuredVoltage();
     float vol1 = adc.getVoltage(0);
     float vol2 = adc.getVoltage(1);
     float vol3 = adc.getVoltage(2);
 
-    char buf[100];
-    sprintf(buf, "%f %f %f %f\r\n", angle, vol1, vol2, vol3);
-    rs485.write(buf, strlen(buf));
-    adc.sendStartMeasure();
+    if (count % 100 == 0){
+      char buf[100];
+      sprintf(buf, "%f %d %f %f %f\r\n", angle, prev_hole_state, vol1, vol2, vol3);
+      rs485.write(buf, strlen(buf));
+      adc.sendStartMeasure();
+    }
+    if (count % 500 == 0) led1 = led1 ^ 1;
+    
+    led2 = 1;
+    while(time_ms == prev_time_ms);
+    prev_time_ms = time_ms;
+    led2 = 0;
     
   /* USER CODE END WHILE */
 
