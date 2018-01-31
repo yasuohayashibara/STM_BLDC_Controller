@@ -56,6 +56,8 @@ public:
 
     void resetHoleSensorCount();
 
+    void controlHole(int hole_no, float duty_ratio);
+
 //#ifdef MBED_OPERATORS
     /** A operator shorthand for write()
      */
@@ -88,11 +90,15 @@ private:
     float _value;
     float _max_ratio;
     bool _enable;
+    bool _fix_hole;
     int _hole_state_no;
+public:
     float _hole_state0_angle;
+private:
     float _angle;
     float _integral_angle;
     float _prev_angle;
+    float _velocity;
 
     AS5600 *_as5600;
 

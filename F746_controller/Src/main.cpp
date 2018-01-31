@@ -102,6 +102,9 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 volatile long time_ms = 0;
 STM_BLDCMotor *p_motor = NULL;
 int prev_hole_state = -1;
+ADConv *p_adc = NULL;
+float adconv[1000][4];
+int ad_no = -1;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -118,10 +121,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         prev_hole_state = hole_state;
       }
     }
+    if (p_adc != NULL){
+      p_adc->recvMeasuredVoltage();
+      float vol1 = p_adc->getVoltage(0);
+      float vol2 = p_adc->getVoltage(1);
+      float vol3 = p_adc->getVoltage(2);
+      p_adc->sendStartMeasure();
+
+      if (ad_no >= 0 && ad_no < 1000){
+        adconv[ad_no][0] = vol1;
+        adconv[ad_no][1] = vol2;
+        adconv[ad_no][2] = vol3;
+        adconv[ad_no][3] = prev_hole_state;
+        ad_no ++;
+      }
+    }
   }
 }
-
-//float adconv[100][3];
 
 /* USER CODE END 0 */
 
@@ -168,6 +184,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
+  p_adc = &adc;
   STM_BLDCMotor motor(&htim4, &as5600);
   p_motor = &motor;
 
@@ -184,46 +201,37 @@ int main(void)
   motor.servoOn();
   motor = 0.1;
   float prev_integrated_angle = 0.0;
-  int ad_no = -1;
   for(long count = 0; ; count ++)
   {
     float angle = as5600.getAngleDeg();
-    adc.recvMeasuredVoltage();
-    float vol1 = adc.getVoltage(0);
-    float vol2 = adc.getVoltage(1);
-    float vol3 = adc.getVoltage(2);
-/*
-    if (ad_no >= 0){
-      adconv[ad_no][0] = vol1;
-      adconv[ad_no][1] = vol2;
-      adconv[ad_no][2] = vol3;
-      ad_no ++;
-      if (ad_no >= 100){
-        for(int i = 0; i < 100;i ++){
-          char buf[100];
-          sprintf(buf, "%f %f %f\r\n", adconv[i][0], adconv[i][1], adconv[i][2]);
-          rs485.write(buf, strlen(buf));
-        }
-        break;
-      }
-    }
-*/
+
     if (count % 100 == 0){
       float ratio = motor;
       float integrated_angle = motor.getIntegratedAngleRad();
       float rot = (integrated_angle - prev_integrated_angle) / (2 * M_PI) * 10;
       prev_integrated_angle = integrated_angle;
       char buf[100];
-      sprintf(buf, "%f %f %d %f %f %f\r\n", ratio, rot, prev_hole_state, vol1, vol2, vol3);
+      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor._hole_state0_angle, prev_hole_state);
       int c = rs485.getc();
       if (c == 'a' && motor <  0.5f) motor = motor + 0.1f;
       if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
+      if (c == 'q') motor._hole_state0_angle += 0.001f;
+      if (c == 'w') motor._hole_state0_angle -= 0.001f;
       if (c == 'm') ad_no = 0;
+      if (c == 'h') motor.controlHole(0,0.2);
       rs485.write(buf, strlen(buf));
-      adc.sendStartMeasure();
     }
     if (count % 500 == 0) led1 = led1 ^ 1;
     
+    if (ad_no >= 1000){
+      for(int i = 0; i < 1000;i ++){
+        char buf[100];
+        sprintf(buf, "%f %f %f %f\r\n", adconv[i][0], adconv[i][1], adconv[i][2], adconv[i][3]);
+        rs485.write(buf, strlen(buf));
+      }
+      break;
+    }
+
     led2 = 1;
     while(time_ms == prev_time_ms);
     prev_time_ms = time_ms;

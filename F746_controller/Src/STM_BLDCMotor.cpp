@@ -4,7 +4,7 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-#define TEST_MOTOR_HOLE0_ANGLE 3.068711
+#define TEST_MOTOR_HOLE0_ANGLE 3.038024
 
 #define HOLE_STATE0   0x05  // 101  ( 0deg - 60deg)
 #define HOLE_STATE1   0x04  // 100  ( 60deg - 120deg)
@@ -38,9 +38,9 @@ STM_BLDCMotor::STM_BLDCMotor(TIM_HandleTypeDef *htim, AS5600 *as5600) :
   _uh(_htim, TIM_CHANNEL_1), _ul(L1_GPIO_Port, L1_Pin),
   _vh(_htim, TIM_CHANNEL_2), _vl(L2_GPIO_Port, L2_Pin),
   _wh(_htim, TIM_CHANNEL_3), _wl(L3_GPIO_Port, L3_Pin),
-  _value(0.0f), _max_ratio(0.5f), _enable(false), 
+  _value(0.0f), _max_ratio(0.5f), _enable(false), _fix_hole(false),
   _hole_state_no(0), _hole_state0_angle(TEST_MOTOR_HOLE0_ANGLE),
-  _angle(0), _integral_angle(0), _prev_angle(0),
+  _angle(0), _integral_angle(0), _prev_angle(0), _velocity(0),
   _as5600(as5600)
 {
   HAL_TIM_PWM_Start(_htim, TIM_CHANNEL_1);
@@ -55,11 +55,13 @@ STM_BLDCMotor::STM_BLDCMotor(TIM_HandleTypeDef *htim, AS5600 *as5600) :
 void STM_BLDCMotor::servoOn(void)
 {
   _enable = true;
+  _fix_hole = false;
 }
 
 void STM_BLDCMotor::servoOff(void)
 {
   _enable = false;
+  _fix_hole = false;
 }
 
 void STM_BLDCMotor::setMaxDutyRatio(float max_ratio)
@@ -84,9 +86,10 @@ bool STM_BLDCMotor::update()
   const float angle_width = 2 * M_PI / 42;
   _angle = _hole_state0_angle + angle_width/2 + 2 * M_PI - _as5600->getAngleRad();
   float angle_diff = maxPI(_angle - _prev_angle);
+  _velocity = (1.0f - 0.0005f) * _velocity + 0.0005f * angle_diff * 20000.0f;
   _prev_angle = _angle;
   _integral_angle += angle_diff;
-  int hole_no = (int)(_angle / angle_width);
+  int hole_no = (int)((_angle + _velocity * 0.001f) / angle_width);
   _hole_state_no = hole_no % 6;
 
   return true;
@@ -104,15 +107,26 @@ float STM_BLDCMotor::getIntegratedAngleRad()
 
 void STM_BLDCMotor::status_changed(void)
 {
-  int dir = (_value >= 0.0f) ? 1 : -2;
+  int dir = (_value >= 0.0f) ? 2 : -2;
   int next_state = (_hole_state_no + dir + 6) % 6;
-  if (_enable){
-    drive(switching_table[next_state][0],
-            switching_table[next_state][1],
-            switching_table[next_state][2]);
-  } else {
-    drive(0, 0, 0);
+  if (!_fix_hole){
+    if (_enable){
+      drive(switching_table[next_state][0],
+              switching_table[next_state][1],
+              switching_table[next_state][2]);
+    } else {
+      drive(0, 0, 0);
+    }
   }
+}
+
+void STM_BLDCMotor::controlHole(int hole_no, float duty_ratio)
+{
+  _fix_hole = true;
+  _value = duty_ratio;
+  drive(switching_table[hole_no][0],
+    switching_table[hole_no][1],
+    switching_table[hole_no][2]);
 }
 
 /*!
