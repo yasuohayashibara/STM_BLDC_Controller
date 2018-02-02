@@ -591,14 +591,14 @@
               <FilePath>..\Src\STM_BLDCMotor.cpp</FilePath>
             </File>
             <File>
-              <FileName>as5048B.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Src\as5048B.h</FilePath>
+              <FileName>AngleSensor.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\Src\AngleSensor.cpp</FilePath>
             </File>
             <File>
-              <FileName>AS5048B.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\Src\AS5048B.cpp</FilePath>
+              <FileName>AngleSensor.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Src\AngleSensor.h</FilePath>
             </File>
           </Files>
         </Group>
