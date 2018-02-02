@@ -43,6 +43,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "LED.h"
 #include "switch.h"
 #include "RS485.h"
@@ -50,7 +51,9 @@
 #include "PWM.h"
 #include "ADConv.h"
 #include "Parser.h"
+#include "b3m.h"
 #include "STM_BLDCMotor.h"
+#include "Flash.h"
 
 /* USER CODE END Includes */
 
@@ -73,6 +76,55 @@ DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+
+// version { year, month, day, no }
+char version[4] = { 18, 02, 02, 1 };
+
+#define GAIN 10.0
+#define GAIN_I 0.0
+#define PUNCH 0.0
+#define DEAD_BAND_WIDTH 0.1
+#define MAX_ANGLE 60.0
+#define MIN_ANGLE -60.0
+#define BAUDRATE 115200
+#define FLASH_ADDRESS 0x08010000
+
+#ifndef M_PI
+#define M_PI           3.14159265358979323846f
+#endif
+
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
+#define USE_WAKEUP_MODE
+
+extern Property property;
+
+static const unsigned int MAX_COMMAND_LEN = 256; 
+unsigned char command_data[MAX_COMMAND_LEN];
+int command_len = 0;
+const int LED_TOGGLE_COUNT = 500;
+unsigned char send_buf[256];
+unsigned char send_buf_len = 0;
+
+const int stocked_number = 1000;
+const int period_ms = 5;
+short stocked_target_position[stocked_number];
+short stocked_encoder_position[stocked_number];
+short stocked_motor_position[stocked_number];
+short stocked_pwm_duty[stocked_number];
+
+struct RobotStatus {
+  float target_angle;
+  float initial_angle;
+  bool is_servo_on;
+  bool change_target;
+  bool isWakeupMode;
+  int led_state;
+  int led_count;
+  float err_i;
+  int pulse_per_rotate;
+} status;
 
 /* USER CODE END PV */
 
@@ -103,8 +155,8 @@ volatile long time_ms = 0;
 STM_BLDCMotor *p_motor = NULL;
 int prev_hole_state = -1;
 ADConv *p_adc = NULL;
-float adconv[1000][4];
-int ad_no = -1;
+//float adconv[1000][4];
+//int ad_no = -1;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -121,22 +173,60 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         prev_hole_state = hole_state;
       }
     }
-    if (p_adc != NULL){
-      p_adc->recvMeasuredVoltage();
-      float vol1 = p_adc->getVoltage(0);
-      float vol2 = p_adc->getVoltage(1);
-      float vol3 = p_adc->getVoltage(2);
-      p_adc->sendStartMeasure();
-
-      if (ad_no >= 0 && ad_no < 1000){
-        adconv[ad_no][0] = vol1;
-        adconv[ad_no][1] = vol2;
-        adconv[ad_no][2] = vol3;
-        adconv[ad_no][3] = prev_hole_state;
-        ad_no ++;
-      }
-    }
+//    if (p_adc != NULL){
+//      p_adc->recvMeasuredVoltage();
+//      float vol1 = p_adc->getVoltage(0);
+//      float vol2 = p_adc->getVoltage(1);
+//      float vol3 = p_adc->getVoltage(2);
+//      p_adc->sendStartMeasure();
+//
+//      if (ad_no >= 0 && ad_no < 1000){
+//        adconv[ad_no][0] = vol1;
+//        adconv[ad_no][1] = vol2;
+//        adconv[ad_no][2] = vol3;
+//        adconv[ad_no][3] = prev_hole_state;
+//        ad_no ++;
+//      }
+//    }
   }
+}
+
+float deg100_2rad(float deg){
+  return deg * M_PI / 18000.0f;
+}
+
+float deg2rad(float deg){
+  return deg * M_PI / 180.0f;
+}
+
+float rad2deg100(float rad){
+  return rad * 18000.0f / M_PI;
+}
+
+int initialize()
+{
+//  status.initial_angle = status.target_angle = angle_senor;   // read angle
+//  if (as5600.getError()) return -1;
+  status.is_servo_on = false;
+  status.led_state = 0;
+  status.led_count = 0;
+  status.change_target = false;
+  status.isWakeupMode = false;
+  status.err_i = 0.0;
+  
+  memset((void *)&property, 0, sizeof(property));
+  property.ID = 0;
+  property.Baudrate = BAUDRATE;
+  property.PositionMinLimit = MIN_ANGLE * 100;
+  property.PositionMaxLimit = MAX_ANGLE * 100;
+  property.PositionCenterOffset = rad2deg100(status.target_angle);
+  property.TorqueLimit = 100;
+  property.DeadBandWidth = DEAD_BAND_WIDTH * 100;
+  property.Kp0 = GAIN * 100;
+  property.Ki0 = GAIN_I * 100;
+  property.StaticFriction0 = PUNCH *100;
+  property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
+  return 0;
 }
 
 /* USER CODE END 0 */
@@ -178,25 +268,39 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-  LED led1(0), led2(1), led3(2);
+  LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
-//  AS5600 as5600(&hi2c2);
-AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
+  AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
   p_adc = &adc;
   STM_BLDCMotor motor(&htim4, &angle_sensor);
   p_motor = &motor;
+  Parser commnand_parser;
+  Flash flash;
 
-  /* USER CODE END 2 */
+  bool is_status_changed = false;
+  int time_from_last_update = 0;
+  int stocked_count = stocked_number;
+  int sub_count = period_ms;
+  
+//  if (initialize() == -1) goto error;
+  initialize();
+  led1 = 0;
+//  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+  property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
+  status.pulse_per_rotate = property.MCUTempLimit;
+  if (status.pulse_per_rotate <= 0) status.pulse_per_rotate = 2000.0f;
+
+/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_Delay(100);
-  angle_sensor.startMeasure();
-  rs485.printf("START\r\n");
-  adc.sendStartMeasure();
+//  angle_sensor.startMeasure();
+// rs485.printf("START\r\n");
+//  adc.sendStartMeasure();
   long prev_time_ms = time_ms;
   HAL_Delay(100);
   motor.servoOn();
@@ -204,6 +308,178 @@ AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
   float prev_integrated_angle = 0.0;
   for(long count = 0; ; count ++)
   {
+    
+    status.led_count ++;
+    if (status.led_count > LED_TOGGLE_COUNT){
+      status.led_state ^= 1;
+      led1 = status.led_state;
+      status.led_count = 0;
+    } 
+#ifdef USE_WAKEUP_MODE
+    status.isWakeupMode = (count < 5000) ? true : false;
+#endif
+    command_len = rs485.read(command_data, MAX_COMMAND_LEN);
+    int command = commnand_parser.setCommand(command_data, command_len);
+    command_len = 0;
+    
+    if (command == B3M_CMD_WRITE){
+      led2 = led2 ^ 1;
+    } else if (command == B3M_CMD_SAVE){
+      flash.write(FLASH_ADDRESS, (uint8_t *)&property, sizeof(property));
+    } else if (command == B3M_CMD_LOAD){
+      memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+    } else if (command == B3M_CMD_RESET){      
+      initialize();
+      led2 = led3 = led4 = 1;
+      HAL_Delay(1000);
+      led2 = led3 = led4 = 0;
+    } else if (command == B3M_CMD_DATA_STOCK){
+      stocked_count = 0;
+    } else if (command == B3M_CMD_DATA_PLAY){
+      led4 = 1;
+      for(int i = 0; i < stocked_number; i ++){
+        rs485.printf("%d, %d, %d, %d\r\n", 
+          stocked_target_position[i], stocked_encoder_position[i],
+          stocked_motor_position[i], stocked_pwm_duty[i]);
+        HAL_Delay(10);
+      }
+      led4 = 0;
+    }
+    
+    int address, data;
+    int com_num = commnand_parser.getNextCommand(&address, &data);
+    if (com_num > 0){
+      switch(address){
+        case B3M_SYSTEM_ID:
+          property.ID = data;
+          break;
+        case B3M_SYSTEM_POSITION_MIN:
+          property.PositionMinLimit = data;
+          break;
+        case B3M_SYSTEM_POSITION_MAX:
+          property.PositionMaxLimit = data;
+          break;
+        case B3M_SYSTEM_POSITION_CENTER:
+          property.PositionCenterOffset = data;
+          break;
+        case B3M_SYSTEM_MCU_TEMP_LIMIT:
+          property.MCUTempLimit = data;
+          break;
+        case B3M_SYSTEM_DEADBAND_WIDTH:
+          property.DeadBandWidth = data;
+          break;
+        case B3M_SYSTEM_TORQUE_LIMIT:
+          property.TorqueLimit = data;
+          break;
+        case B3M_SERVO_DESIRED_POSITION:
+          data = max(min(data, property.PositionMaxLimit), property.PositionMinLimit);
+          status.target_angle = deg100_2rad(data)  + deg100_2rad(property.PositionCenterOffset);
+          property.DesiredPosition = rad2deg100(status.target_angle);
+          is_status_changed = true;
+          break;
+        case B3M_CONTROL_KP0:
+          property.Kp0 = data;
+          break;
+        case B3M_CONTROL_KD0:
+          property.Kd0 = data;
+          break;
+        case B3M_CONTROL_KI0:
+          property.Ki0 = data;
+          status.err_i = 0;
+          break;
+        case B3M_CONTROL_STATIC_FRICTION0:
+          property.StaticFriction0 = data;
+          break;
+        case B3M_CONTROL_KP1:
+          property.Kp1 = data;
+          break;
+        case B3M_SERVO_SERVO_MODE:
+          status.is_servo_on = (data == 0) ? true : false;
+          led3 = (status.is_servo_on) ? 1 : 0;
+          
+          status.initial_angle = status.target_angle = angle_sensor.read();
+          if (angle_sensor.getError()) break;
+          property.DesiredPosition = rad2deg100(status.target_angle);
+          break;
+      }
+    }
+
+    property.PreviousPosition = property.CurrentPosition;
+    short current_position = 0;
+    
+    property.CurrentPosition = current_position;
+    float period = 0.010f;
+//    float period = position_read_timer.read();
+//    position_read_timer.reset();
+    property.CurrentVelosity = property.CurrentVelosity * 0.9f + (property.CurrentPosition - property.PreviousPosition) / period * 0.1f;
+    
+    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
+    while(error > M_PI) error -= 2.0f * M_PI;
+    while(error < -M_PI) error += 2.0f * M_PI;
+    status.err_i += error * 0.001f;
+    status.err_i = max(min(status.err_i, 0.001f), -0.001f); 
+    
+    float gain = property.Kp0 / 100.0f;
+    float gain1 = property.Kp1 / 100.0f;
+    float gain_d = property.Kd0 / 100.0f;
+    float gain_i = property.Ki0 / 100.0f;
+    float punch = property.StaticFriction0 / 100.0f;
+    float pwm = gain_i * status.err_i;
+    pwm += gain_d * deg100_2rad(property.CurrentVelosity);
+    float margin = deg100_2rad(property.DeadBandWidth);
+    if (fabs(error) > margin){
+      if (error > 0){
+        error -= margin;
+        pwm += gain * error + punch;
+      } else {
+        error += margin;
+        pwm += gain * error - punch;
+      }
+    } else {
+        pwm += gain1 * error;
+    }
+    
+    float max_torque = property.TorqueLimit / 100.0f;
+    float val = max(min(pwm, max_torque), -max_torque);
+    if (status.isWakeupMode) val *= 0.3f;
+    
+    if (status.is_servo_on) motor = val;
+    else motor = 0;
+    property.PwmDuty = motor * 100;
+    
+    if (send_buf_len == 0){
+      send_buf_len = commnand_parser.getReply(send_buf);
+    }
+    if (send_buf_len > 0){
+      rs485.write(send_buf, send_buf_len);
+//      for(int i = 0; i < send_buf_len; i ++) rs485.putc(send_buf[i]);
+      send_buf_len = 0;
+    }
+    
+    if ((is_status_changed)||(time_from_last_update >= 10)){
+      motor.status_changed();
+      is_status_changed = false;
+      time_from_last_update = 0;
+    }
+    time_from_last_update ++;
+    
+    if (stocked_count < stocked_number){
+      sub_count --;
+      if (sub_count <= 0){
+        sub_count = period_ms;
+        float angle = angle_sensor.read();
+        if (angle_sensor.getError()) angle = 0;
+        stocked_target_position[stocked_count] = property.DesiredPosition - property.PositionCenterOffset;
+        stocked_encoder_position[stocked_count] = rad2deg100(angle) - property.PositionCenterOffset;
+        stocked_motor_position[stocked_count] = property.CurrentPosition - property.PositionCenterOffset;
+        stocked_pwm_duty[stocked_count] = property.PwmDuty;
+        stocked_count ++;
+        led4 = 1;
+      }
+    } else {
+      led4 = 0;
+    }
+/*    
     float angle = angle_sensor.getAngleDeg();
 
     if (count % 100 == 0){
@@ -234,11 +510,9 @@ AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
       }
       break;
     }
-
-    led2 = 1;
+*/
     while(time_ms == prev_time_ms);
     prev_time_ms = time_ms;
-    led2 = 0;
     
   /* USER CODE END WHILE */
 
