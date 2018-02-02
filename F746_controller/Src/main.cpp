@@ -46,8 +46,7 @@
 #include "LED.h"
 #include "switch.h"
 #include "RS485.h"
-//#include "AS5600.h"
-#include "AS5048B.h"
+#include "AngleSensor.h"
 #include "PWM.h"
 #include "ADConv.h"
 #include "Parser.h"
@@ -182,12 +181,12 @@ int main(void)
   LED led1(0), led2(1), led3(2);
   RS485 rs485(&huart1);
 //  AS5600 as5600(&hi2c2);
-  AS5048B as5600(&hi2c2);
+AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
   p_adc = &adc;
-  STM_BLDCMotor motor(&htim4, &as5600);
+  STM_BLDCMotor motor(&htim4, &angle_sensor);
   p_motor = &motor;
 
   /* USER CODE END 2 */
@@ -195,7 +194,7 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_Delay(100);
-  as5600.startMeasure();
+  angle_sensor.startMeasure();
   rs485.printf("START\r\n");
   adc.sendStartMeasure();
   long prev_time_ms = time_ms;
@@ -205,7 +204,7 @@ int main(void)
   float prev_integrated_angle = 0.0;
   for(long count = 0; ; count ++)
   {
-    float angle = as5600.getAngleDeg();
+    float angle = angle_sensor.getAngleDeg();
 
     if (count % 100 == 0){
       float ratio = motor;
@@ -213,7 +212,7 @@ int main(void)
       float rot = (integrated_angle - prev_integrated_angle) / (2 * M_PI) * 10;
       prev_integrated_angle = integrated_angle;
       char buf[100];
-      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor._hole_state0_angle, prev_hole_state);
+      sprintf(buf, "%f %f %f %f %d\r\n", ratio, rot, motor._hole_state0_angle, angle_sensor.getAngleRad(), prev_hole_state);
 //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor.getIntegratedAngleRad()/29, prev_hole_state);
 //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, as5600.getAngleRad(), prev_hole_state);
       int c = rs485.getc();

@@ -1,5 +1,5 @@
-#ifndef AS5600_H
-#define AS5600_H
+#ifndef ANGLE_SENSOR_H
+#define ANGLE_SENSOR_H
 
 #include "main.h"
 #include "stm32f7xx_hal.h"
@@ -8,40 +8,46 @@
 #define M_PI           3.14159265358979323846f
 #endif
 
-class AS5600
+class AngleSensor
 {
 public:
-  AS5600(I2C_HandleTypeDef *hi2c);
-    
+  enum model_t {
+    AS5600,
+    AS5048B
+  };
+
+  AngleSensor(I2C_HandleTypeDef *hi2c, model_t model);
+  
   void setOffserAngleRad(float value) { _angle0 = value; }
   
   void startMeasure();
   
   void stopMeasure();
-  
-  float read() { return _angle; }
-  
-  operator float() { return read(); }
-  
+
   float getAngleRad() { return _angle; }
   
   float getAngleDeg() { return _angle * 180.0f / M_PI; }
-  
-  bool getError() { return _error; }
-  
+
+  int getError() { return _error; }
+
   void resetError() { _error = false; }
-  
+
+  float read() { return _angle; }
+
   bool sendMeasureAngleRequest();
   
   bool receiveAngleRequest();
   
   void receiveAngle();
-
+  
+  model_t getModel() { return _model; }
+  
   bool _do_measure;
   
   bool _error;
   
 private:
+  model_t _model;
   float _angle;
   float _angle0;
 
@@ -53,9 +59,9 @@ private:
   static const int RX_BUF_SIZE = 16;
   unsigned char _tx_buf[TX_BUF_SIZE];
   unsigned char _rx_buf[RX_BUF_SIZE];
-
-  static const int SLAVE_ADRESS = 0x36;
-  static const int ANGLE_ADRESS = 0x0E;
+  
+  int SLAVE_ADRESS;
+  int ANGLE_ADRESS;
 };
 
 #endif
