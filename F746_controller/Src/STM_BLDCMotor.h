@@ -4,7 +4,8 @@
 #define STM_BLDCMOTOR_H
 
 #include "PWM.h"
-#include "AS5600.h"
+//#include "AS5600.h"
+#include "AS5048B.h"
 #include "Output.h"
 
 /** Class to control a motor on any pin, without using pwm pin
@@ -32,7 +33,8 @@ public:
       *
       * @param Pin Pin on mbed to connect PWM device to
      */
-    STM_BLDCMotor(TIM_HandleTypeDef *htim, AS5600 *as5600);
+//    STM_BLDCMotor(TIM_HandleTypeDef *htim, AS5600 *as5600);
+    STM_BLDCMotor(TIM_HandleTypeDef *htim, AS5048B *as5600);
 
     void servoOn(void);
 
@@ -100,7 +102,8 @@ private:
     float _prev_angle;
     float _velocity;
 
-    AS5600 *_as5600;
+//    AS5600 *_as5600;
+    AS5048B *_as5600;
 
     static int switching_table[6][3];
     void drive(int u, int v, int w);

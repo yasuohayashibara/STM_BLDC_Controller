@@ -46,7 +46,8 @@
 #include "LED.h"
 #include "switch.h"
 #include "RS485.h"
-#include "AS5600.h"
+//#include "AS5600.h"
+#include "AS5048B.h"
 #include "PWM.h"
 #include "ADConv.h"
 #include "Parser.h"
@@ -180,7 +181,8 @@ int main(void)
 
   LED led1(0), led2(1), led3(2);
   RS485 rs485(&huart1);
-  AS5600 as5600(&hi2c2);
+//  AS5600 as5600(&hi2c2);
+  AS5048B as5600(&hi2c2);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
@@ -199,7 +201,7 @@ int main(void)
   long prev_time_ms = time_ms;
   HAL_Delay(100);
   motor.servoOn();
-  motor = 0.1;
+//  motor = 0.1;
   float prev_integrated_angle = 0.0;
   for(long count = 0; ; count ++)
   {
@@ -212,6 +214,8 @@ int main(void)
       prev_integrated_angle = integrated_angle;
       char buf[100];
       sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor._hole_state0_angle, prev_hole_state);
+//      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor.getIntegratedAngleRad()/29, prev_hole_state);
+//      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, as5600.getAngleRad(), prev_hole_state);
       int c = rs485.getc();
       if (c == 'a' && motor <  0.5f) motor = motor + 0.1f;
       if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
@@ -488,7 +492,8 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x00200105;
+//  hi2c2.Init.Timing = 0x00200105;
+  hi2c2.Init.Timing = 0x00610611;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;

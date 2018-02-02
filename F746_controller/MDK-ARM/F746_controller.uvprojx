@@ -511,11 +511,6 @@
               <FilePath>..\Src\ADConv.h</FilePath>
             </File>
             <File>
-              <FileName>as5600.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Src\as5600.h</FilePath>
-            </File>
-            <File>
               <FileName>b3m.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Src\b3m.h</FilePath>
@@ -566,11 +561,6 @@
               <FilePath>..\Src\ADConv.cpp</FilePath>
             </File>
             <File>
-              <FileName>AS5600.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\Src\AS5600.cpp</FilePath>
-            </File>
-            <File>
               <FileName>Flash.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\Src\Flash.cpp</FilePath>
@@ -599,6 +589,16 @@
               <FileName>STM_BLDCMotor.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\Src\STM_BLDCMotor.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>as5048B.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Src\as5048B.h</FilePath>
+            </File>
+            <File>
+              <FileName>AS5048B.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\Src\AS5048B.cpp</FilePath>
             </File>
           </Files>
         </Group>
