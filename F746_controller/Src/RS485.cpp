@@ -1,14 +1,14 @@
 #include "RS485.h"
 
 RS485 *p_rs485;
-char temp_int[256];
+unsigned char temp_int[256];
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART1)
   {
     p_rs485->setDirection(RS485::INPUT);
-    p_rs485->read(temp_int);
+    p_rs485->read(temp_int, 256);
   }
 }
 
@@ -37,12 +37,13 @@ int RS485::getc()
   return HAL_UART_Receive_DMA(_huart, _rx_buf, 1) == HAL_OK ? _rx_buf[0] : EOF;
 }
   
-int RS485::read(char *buf)
+int RS485::read(unsigned char *buf, unsigned int len)
 {
+  if (HAL_UART_Receive_DMA(_huart, _rx_buf, 7) != HAL_OK) return 0;
+  
   int ret = 0;
-  for(int c = getc(); c != EOF; ret ++) {
-    c = getc();
-    *buf ++ = c;
+  for(; ret < len; ret ++) {
+    buf[ret] = _rx_buf[ret];
   }
   return ret;
 }

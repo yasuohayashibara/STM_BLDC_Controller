@@ -22,7 +22,7 @@ public:
   
   int getc();
   
-  int read(char *buf);
+  int read(unsigned char *buf, unsigned int len);
   
   int write(const void* buffer, size_t length);
   
@@ -31,8 +31,8 @@ public:
 private:
   UART_HandleTypeDef *_huart;
 
-  static const int TX_BUF_SIZE = 16;
-  static const int RX_BUF_SIZE = 256;
+  static const int TX_BUF_SIZE = 256;
+  static const int RX_BUF_SIZE = 16;
   unsigned char _tx_buf[TX_BUF_SIZE];
   unsigned char _rx_buf[RX_BUF_SIZE];
 };
