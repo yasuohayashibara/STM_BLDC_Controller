@@ -28,13 +28,11 @@ public:
   
   int printf(const char* format, ...);
 
-private:
   UART_HandleTypeDef *_huart;
 
-  static const int TX_BUF_SIZE = 256;
-  static const int RX_BUF_SIZE = 16;
-  unsigned char _tx_buf[TX_BUF_SIZE];
-  unsigned char _rx_buf[RX_BUF_SIZE];
+  int _rx_index;
+
+  int _direction;
 };
 
 #endif

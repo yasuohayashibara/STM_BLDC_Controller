@@ -1,29 +1,42 @@
 #include "RS485.h"
 
-RS485 *p_rs485;
-unsigned char temp_int[256];
+RS485 *p_rs485 = NULL;
+
+static const int RX_BUF_SIZE = 16;
+static const int TX_BUF_SIZE = 512;
+static uint8_t _tx_buf[TX_BUF_SIZE];
+static uint8_t _rx_buf[RX_BUF_SIZE];
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
+  if (p_rs485 == NULL) return;
   if (huart->Instance == USART1)
   {
+    HAL_UART_DMAStop(p_rs485->_huart);
+    HAL_UART_Receive_DMA(p_rs485->_huart, _rx_buf, RX_BUF_SIZE);
+    p_rs485->_rx_index = 0;
     p_rs485->setDirection(RS485::INPUT);
-    p_rs485->read(temp_int, 256);
   }
 }
 
 RS485::RS485(UART_HandleTypeDef *huart) :
-  _huart(huart)
+  _huart(huart), _rx_index(0), _direction(INPUT)
 {
   setDirection(INPUT);
   p_rs485 = this;
+  /* Disable the UART Parity Error Interrupt */
+  __HAL_UART_DISABLE_IT(_huart, UART_IT_PE);
+  /* Disable the UART Error Interrupt: (Frame error, noise error, overrun error) */
+  __HAL_UART_DISABLE_IT(_huart, UART_IT_ERR);
+  HAL_UART_Receive_DMA(_huart, _rx_buf, RX_BUF_SIZE);
 }
-  
+
 void RS485::setDirection(int status) {
   GPIO_PinState pin_state = status == OUTPUT ? GPIO_PIN_SET : GPIO_PIN_RESET;
   HAL_GPIO_WritePin(RX485_REDE_GPIO_Port, RX485_REDE_Pin, pin_state);
+  _direction = status;
 }
-  
+
 char RS485::putc(int c)
 {
   _tx_buf[0] = c;
@@ -31,21 +44,30 @@ char RS485::putc(int c)
   HAL_StatusTypeDef res = HAL_UART_Transmit_DMA(_huart, _tx_buf, 1);
   return res == HAL_OK ? c : EOF;
 }
-  
+
 int RS485::getc()
 {
-  return HAL_UART_Receive_DMA(_huart, _rx_buf, 1) == HAL_OK ? _rx_buf[0] : EOF;
+  size_t length = (RX_BUF_SIZE + (RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR) - _rx_index) % RX_BUF_SIZE;
+  int ret = EOF;
+  if (length > 0){
+    ret = _rx_buf[_rx_index ++];
+  }
+  return ret;
 }
   
 int RS485::read(unsigned char *buf, unsigned int len)
 {
-  if (HAL_UART_Receive_DMA(_huart, _rx_buf, 7) != HAL_OK) return 0;
-  
-  int ret = 0;
-  for(; ret < len; ret ++) {
-    buf[ret] = _rx_buf[ret];
+  if (_direction == OUTPUT) return 0;
+  size_t length = (RX_BUF_SIZE + (RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR) - _rx_index) % RX_BUF_SIZE;
+  if (length > 0){
+    if (length == _rx_buf[_rx_index]){
+      for(int i = 0; i < length; i ++) {
+        buf[i] = _rx_buf[_rx_index ++];
+        _rx_index %= RX_BUF_SIZE;
+      }
+    }
   }
-  return ret;
+  return length;
 }
   
 int RS485::write(const void* buffer, size_t length)
