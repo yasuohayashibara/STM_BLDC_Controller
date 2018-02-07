@@ -86,7 +86,7 @@ char version[4] = { 18, 02, 02, 1 };
 #define DEAD_BAND_WIDTH 0.1
 #define MAX_ANGLE 60.0
 #define MIN_ANGLE -60.0
-#define BAUDRATE 115200
+#define BAUDRATE 1500000
 #define FLASH_ADDRESS 0x08010000
 
 #ifndef M_PI
@@ -293,19 +293,18 @@ int main(void)
   status.pulse_per_rotate = property.MCUTempLimit;
   if (status.pulse_per_rotate <= 0) status.pulse_per_rotate = 2000.0f;
 
-/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_Delay(100);
-//  angle_sensor.startMeasure();
-// rs485.printf("START\r\n");
+  angle_sensor.startMeasure();
 //  adc.sendStartMeasure();
   long prev_time_ms = time_ms;
   HAL_Delay(100);
   motor.servoOn();
 //  motor = 0.1;
-  float prev_integrated_angle = 0.0;
+//  float prev_integrated_angle = 0.0;
   for(long count = 0; ; count ++)
   {
     
@@ -322,7 +321,7 @@ int main(void)
     int command = commnand_parser.setCommand(command_data, command_len);
     command_len = 0;
     
-    if (command == B3M_CMD_WRITE){
+    if (command == B3M_CMD_WRITE || command == B3M_CMD_READ){
       led2 = led2 ^ 1;
     } else if (command == B3M_CMD_SAVE){
       flash.write(FLASH_ADDRESS, (uint8_t *)&property, sizeof(property));
@@ -397,7 +396,7 @@ int main(void)
           status.is_servo_on = (data == 0) ? true : false;
           led3 = (status.is_servo_on) ? 1 : 0;
           
-          status.initial_angle = status.target_angle = angle_sensor.read();
+          status.initial_angle = status.target_angle = angle_sensor.getAngleRad();
           if (angle_sensor.getError()) break;
           property.DesiredPosition = rad2deg100(status.target_angle);
           break;
@@ -405,7 +404,7 @@ int main(void)
     }
 
     property.PreviousPosition = property.CurrentPosition;
-    short current_position = 0;
+    short current_position = rad2deg100(angle_sensor.getAngleRad() + status.initial_angle);
     
     property.CurrentPosition = current_position;
     float period = 0.010f;
@@ -452,7 +451,6 @@ int main(void)
     }
     if (send_buf_len > 0){
       rs485.write(send_buf, send_buf_len);
-//      for(int i = 0; i < send_buf_len; i ++) rs485.putc(send_buf[i]);
       send_buf_len = 0;
     }
     
@@ -765,8 +763,8 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
-//  hi2c2.Init.Timing = 0x00200105;
-  hi2c2.Init.Timing = 0x00610611;
+  hi2c2.Init.Timing = 0x00200105;
+//  hi2c2.Init.Timing = 0x00610611;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -934,7 +932,8 @@ static void MX_USART1_UART_Init(void)
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
   huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_DMADISABLEONERROR_INIT;
+  huart1.AdvancedInit.DMADisableonRxError = UART_ADVFEATURE_DMA_DISABLEONRXERROR;
   if (HAL_RS485Ex_Init(&huart1, UART_DE_POLARITY_HIGH, 16, 16) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);

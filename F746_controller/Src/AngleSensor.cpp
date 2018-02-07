@@ -4,6 +4,7 @@ AngleSensor *p_AngleSensor = NULL;
 
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *huart)
 {
+  if (p_AngleSensor == NULL) return;
   if (huart->Instance == I2C2)
   {
     if (p_AngleSensor->_do_measure)
@@ -13,6 +14,7 @@ void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *huart)
 
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *huart)
 {
+  if (p_AngleSensor == NULL) return;
   if (huart->Instance == I2C2)
   {
     p_AngleSensor->receiveAngle();
