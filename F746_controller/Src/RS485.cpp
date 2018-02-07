@@ -2,7 +2,7 @@
 
 RS485 *p_rs485 = NULL;
 
-static const int RX_BUF_SIZE = 16;
+static const int RX_BUF_SIZE = 48;
 static const int TX_BUF_SIZE = 512;
 static uint8_t _tx_buf[TX_BUF_SIZE];
 static uint8_t _rx_buf[RX_BUF_SIZE];
