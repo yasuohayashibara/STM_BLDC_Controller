@@ -220,7 +220,7 @@ void initialize(float angle)
   property.Baudrate = BAUDRATE;
   property.PositionMinLimit = MIN_ANGLE * 100;
   property.PositionMaxLimit = MAX_ANGLE * 100;
-  property.PositionCenterOffset = rad2deg100(status.target_angle);
+//  property.PositionCenterOffset = rad2deg100(status.target_angle);
   property.TorqueLimit = 100;
   property.DeadBandWidth = DEAD_BAND_WIDTH * 100;
   property.Kp0 = GAIN * 100;
@@ -292,6 +292,8 @@ int main(void)
   initialize(angle_sensor.getAngleRad());
   led1 = 0;
   memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+  
+//  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
   status.pulse_per_rotate = property.MCUTempLimit;
   if (status.pulse_per_rotate <= 0) status.pulse_per_rotate = 2000.0f;
@@ -303,7 +305,9 @@ int main(void)
 //  adc.sendStartMeasure();
   long prev_time_ms = time_ms;
   motor.servoOn();//  motor = 0.1;
-  float prev_integrated_angle = 0.0;
+//  float prev_integrated_angle = 0.0;
+  int prev_angle_sensor_counter = 0;
+  int wait_counter = 1;
   for(long count = 0; ; count ++)
   {
     
@@ -371,7 +375,7 @@ int main(void)
           break;
         case B3M_SERVO_DESIRED_POSITION:
           data = max(min(data, property.PositionMaxLimit), property.PositionMinLimit);
-          status.target_angle = deg100_2rad(data)  + deg100_2rad(property.PositionCenterOffset);
+          status.target_angle = deg100_2rad(data)/*  + deg100_2rad(property.PositionCenterOffset)*/;
           property.DesiredPosition = rad2deg100(status.target_angle);
           is_status_changed = true;
           break;
@@ -477,6 +481,27 @@ int main(void)
     } else {
       led4 = 0;
     }
+    if (angle_sensor.counter == prev_angle_sensor_counter){
+      led4 = 1;
+      motor = 0;
+      HAL_Delay(10 * wait_counter);  // min 10
+      HAL_I2C_MspDeInit(&hi2c2);
+      HAL_I2C_MspInit(&hi2c2);
+      HAL_Delay(10 * wait_counter);  // min 10
+      angle_sensor.startMeasure();
+      HAL_Delay(10 * wait_counter);  // min 10
+      if (angle_sensor.counter == prev_angle_sensor_counter){
+        status.is_servo_on = false;
+        wait_counter *= 2;
+      } else {
+        wait_counter = 1;
+        status.is_servo_on = true;
+      }
+      led4 = 0;
+    }
+    prev_angle_sensor_counter = angle_sensor.counter;
+
+//    motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
 /*
     float angle = angle_sensor.getAngleDeg();
 

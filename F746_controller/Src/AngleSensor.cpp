@@ -23,7 +23,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *huart)
 }
 
 AngleSensor::AngleSensor(I2C_HandleTypeDef *hi2c, model_t model) :
-  _do_measure(false), _error(false), _model(model), _angle(0), _angle0(0), _hi2c(hi2c)
+  _do_measure(false), _error(false), counter(0),_model(model), _angle(0), _angle0(0), _hi2c(hi2c)
 {
   p_AngleSensor = this;
   if (model == AS5600){
@@ -49,12 +49,13 @@ void AngleSensor::stopMeasure()
 bool AngleSensor::sendMeasureAngleRequest()
 {
   _tx_buf[0] = ANGLE_ADRESS;
-  return HAL_I2C_Master_Transmit_DMA(_hi2c, SLAVE_ADRESS << 1, _tx_buf, 1) == HAL_OK ? true : false;
+  return HAL_I2C_Master_Transmit_IT(_hi2c, SLAVE_ADRESS << 1, _tx_buf, 1) == HAL_OK ? true : false;
 }
 
 bool AngleSensor::receiveAngleRequest()
 {
-  return HAL_I2C_Master_Receive_DMA(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2) == HAL_OK ? true : false;
+  counter ++;
+  return HAL_I2C_Master_Receive_IT(_hi2c, SLAVE_ADRESS << 1, _rx_buf, 2) == HAL_OK ? true : false;
 }
 
 void AngleSensor::receiveAngle()

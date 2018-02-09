@@ -4,8 +4,8 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-#define TEST_MOTOR_HOLE0_ANGLE 3.038024
-#define WHEEL_MOTOR_HOLE0_ANGLE -2.804288
+#define TEST_MOTOR_HOLE0_ANGLE 3.038024f
+#define WHEEL_MOTOR_HOLE0_ANGLE 2.804288f
 
 #define HOLE_STATE0   0x05  // 101  ( 0deg - 60deg)
 #define HOLE_STATE1   0x04  // 100  ( 60deg - 120deg)
@@ -82,11 +82,19 @@ float STM_BLDCMotor::read()
   return _value;
 }
 
+int prev_angle_sensor_counter = 0;
+float angle_diff = 0;
+
 bool STM_BLDCMotor::update()
 {
   const float angle_width = 2 * M_PI / 42;
-  _angle = _hole_state0_angle + angle_width/2 + 2 * M_PI - _angle_sensor->getAngleRad();
-  float angle_diff = maxPI(_angle - _prev_angle);
+  if (prev_angle_sensor_counter != _angle_sensor->counter){
+    _angle = _hole_state0_angle + angle_width/2 + 2 * M_PI - _angle_sensor->getAngleRad();
+  } else {
+    _angle += _velocity / 20000.0f;
+  }
+  prev_angle_sensor_counter = _angle_sensor->counter;
+  angle_diff = maxPI(_angle - _prev_angle);
   _velocity = (1.0f - 0.0005f) * _velocity + 0.0005f * angle_diff * 20000.0f;
   _prev_angle = _angle;
   _integral_angle += angle_diff;

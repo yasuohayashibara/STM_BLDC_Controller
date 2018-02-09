@@ -57,6 +57,10 @@ public:
     void resetHoleSensorCount();
 
     void controlHole(int hole_no, float duty_ratio);
+    
+    void setHoleStateInitAngle(float angle) { _hole_state0_angle = angle; }
+    
+    float getHoleStateInitAngle() { return _hole_state0_angle; }
 
 //#ifdef MBED_OPERATORS
     /** A operator shorthand for write()
@@ -92,9 +96,7 @@ private:
     bool _enable;
     bool _fix_hole;
     int _hole_state_no;
-public:
     float _hole_state0_angle;
-private:
     float _angle;
     float _integral_angle;
     float _prev_angle;

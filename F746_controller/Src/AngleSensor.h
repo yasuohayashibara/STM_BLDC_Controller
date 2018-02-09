@@ -46,6 +46,8 @@ public:
   
   bool _error;
   
+  unsigned int counter;
+  
 private:
   model_t _model;
   float _angle;
@@ -62,6 +64,7 @@ private:
   
   int SLAVE_ADRESS;
   int ANGLE_ADRESS;
+
 };
 
 #endif
