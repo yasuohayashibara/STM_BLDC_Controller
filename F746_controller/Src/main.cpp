@@ -116,6 +116,7 @@ short stocked_pwm_duty[stocked_number];
 
 struct RobotStatus {
   float target_angle;
+  float target_total_angle;
   float initial_angle;
   bool is_servo_on;
   bool change_target;
@@ -203,10 +204,10 @@ float rad2deg100(float rad){
   return rad * 18000.0f / M_PI;
 }
 
-int initialize()
+void initialize(float angle)
 {
-//  status.initial_angle = status.target_angle = angle_senor;   // read angle
-//  if (as5600.getError()) return -1;
+  status.initial_angle = status.target_angle = angle;   // read angle
+  status.target_total_angle = angle;
   status.is_servo_on = false;
   status.led_state = 0;
   status.led_count = 0;
@@ -226,7 +227,6 @@ int initialize()
   property.Ki0 = GAIN_I * 100;
   property.StaticFriction0 = PUNCH *100;
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
-  return 0;
 }
 
 /* USER CODE END 0 */
@@ -270,7 +270,7 @@ int main(void)
 
   LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
-  AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
+  AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5048B);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
@@ -285,10 +285,13 @@ int main(void)
   int stocked_count = stocked_number;
   int sub_count = period_ms;
   
-//  if (initialize() == -1) goto error;
-  initialize();
+  HAL_Delay(100);
+  angle_sensor.startMeasure();
+  HAL_Delay(100);
+
+  initialize(angle_sensor.getAngleRad());
   led1 = 0;
-//  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
   status.pulse_per_rotate = property.MCUTempLimit;
   if (status.pulse_per_rotate <= 0) status.pulse_per_rotate = 2000.0f;
@@ -297,14 +300,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_Delay(100);
-  angle_sensor.startMeasure();
 //  adc.sendStartMeasure();
   long prev_time_ms = time_ms;
-  HAL_Delay(100);
-  motor.servoOn();
-//  motor = 0.1;
-//  float prev_integrated_angle = 0.0;
+  motor.servoOn();//  motor = 0.1;
+  float prev_integrated_angle = 0.0;
   for(long count = 0; ; count ++)
   {
     
@@ -328,7 +327,7 @@ int main(void)
     } else if (command == B3M_CMD_LOAD){
       memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
     } else if (command == B3M_CMD_RESET){      
-      initialize();
+      initialize(angle_sensor.getAngleRad());
       led2 = led3 = led4 = 1;
       HAL_Delay(1000);
       led2 = led3 = led4 = 0;
@@ -407,12 +406,13 @@ int main(void)
     short current_position = rad2deg100(angle_sensor.getAngleRad() + status.initial_angle);
     
     property.CurrentPosition = current_position;
-    float period = 0.010f;
-//    float period = position_read_timer.read();
-//    position_read_timer.reset();
-    property.CurrentVelosity = property.CurrentVelosity * 0.9f + (property.CurrentPosition - property.PreviousPosition) / period * 0.1f;
+    float period = 0.001f;
+    property.CurrentVelocity = property.CurrentVelocity * 0.9f + (property.CurrentPosition - property.PreviousPosition) / period * 0.1f;
     
-    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
+    status.target_total_angle += status.target_angle * period;
+//    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
+//    float error = status.target_total_angle - motor.getIntegratedAngleRad();
+    float error = motor.getIntegratedAngleRad() - status.target_total_angle;
     while(error > M_PI) error -= 2.0f * M_PI;
     while(error < -M_PI) error += 2.0f * M_PI;
     status.err_i += error * 0.001f;
@@ -424,7 +424,7 @@ int main(void)
     float gain_i = property.Ki0 / 100.0f;
     float punch = property.StaticFriction0 / 100.0f;
     float pwm = gain_i * status.err_i;
-    pwm += gain_d * deg100_2rad(property.CurrentVelosity);
+    pwm += gain_d * (status.target_angle - deg100_2rad(property.CurrentVelocity));
     float margin = deg100_2rad(property.DeadBandWidth);
     if (fabs(error) > margin){
       if (error > 0){
@@ -437,7 +437,7 @@ int main(void)
     } else {
         pwm += gain1 * error;
     }
-    
+    pwm = status.target_angle / M_PI;
     float max_torque = property.TorqueLimit / 100.0f;
     float val = max(min(pwm, max_torque), -max_torque);
     if (status.isWakeupMode) val *= 0.3f;
@@ -477,7 +477,7 @@ int main(void)
     } else {
       led4 = 0;
     }
-/*    
+/*
     float angle = angle_sensor.getAngleDeg();
 
     if (count % 100 == 0){
@@ -490,24 +490,30 @@ int main(void)
 //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor.getIntegratedAngleRad()/29, prev_hole_state);
 //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, as5600.getAngleRad(), prev_hole_state);
       int c = rs485.getc();
+//      int len = rs485.read(command_data, MAX_COMMAND_LEN);
+//      int c = EOF;
+      if (c != EOF){
+        command_data[0] = c;
+      }
+//      int c = (len > 0) ? command_data[0] : EOF;
       if (c == 'a' && motor <  0.5f) motor = motor + 0.1f;
       if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
       if (c == 'q') motor._hole_state0_angle += 0.001f;
       if (c == 'w') motor._hole_state0_angle -= 0.001f;
-      if (c == 'm') ad_no = 0;
+//      if (c == 'm') ad_no = 0;
       if (c == 'h') motor.controlHole(0,0.2);
-      rs485.write(buf, strlen(buf));
+//      rs485.write(buf, strlen(buf));
     }
-    if (count % 500 == 0) led1 = led1 ^ 1;
+//    if (count % 500 == 0) led1 = led1 ^ 1;
     
-    if (ad_no >= 1000){
-      for(int i = 0; i < 1000;i ++){
-        char buf[100];
-        sprintf(buf, "%f %f %f %f\r\n", adconv[i][0], adconv[i][1], adconv[i][2], adconv[i][3]);
-        rs485.write(buf, strlen(buf));
-      }
-      break;
-    }
+//    if (ad_no >= 1000){
+//      for(int i = 0; i < 1000;i ++){
+//        char buf[100];
+//        sprintf(buf, "%f %f %f %f\r\n", adconv[i][0], adconv[i][1], adconv[i][2], adconv[i][3]);
+//        rs485.write(buf, strlen(buf));
+//      }
+//      break;
+//    }
 */
     while(time_ms == prev_time_ms);
     prev_time_ms = time_ms;
@@ -763,8 +769,8 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x00200105;
-//  hi2c2.Init.Timing = 0x00610611;
+//  hi2c2.Init.Timing = 0x00200105;
+  hi2c2.Init.Timing = 0x00610611;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;

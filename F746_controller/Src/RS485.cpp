@@ -47,10 +47,12 @@ char RS485::putc(int c)
 
 int RS485::getc()
 {
+  if (_direction == OUTPUT) return 0;
   size_t length = (RX_BUF_SIZE + (RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR) - _rx_index) % RX_BUF_SIZE;
   int ret = EOF;
   if (length > 0){
     ret = _rx_buf[_rx_index ++];
+    _rx_index %= RX_BUF_SIZE;
   }
   return ret;
 }

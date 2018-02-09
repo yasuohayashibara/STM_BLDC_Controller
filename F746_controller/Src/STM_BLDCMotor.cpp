@@ -40,7 +40,7 @@ STM_BLDCMotor::STM_BLDCMotor(TIM_HandleTypeDef *htim, AngleSensor *angle_sensor)
   _vh(_htim, TIM_CHANNEL_2), _vl(L2_GPIO_Port, L2_Pin),
   _wh(_htim, TIM_CHANNEL_3), _wl(L3_GPIO_Port, L3_Pin),
   _value(0.0f), _max_ratio(0.5f), _enable(false), _fix_hole(false),
-  _hole_state_no(0), _hole_state0_angle(TEST_MOTOR_HOLE0_ANGLE),
+  _hole_state_no(0), _hole_state0_angle(WHEEL_MOTOR_HOLE0_ANGLE),
   _angle(0), _integral_angle(0), _prev_angle(0), _velocity(0),
   _angle_sensor(angle_sensor)
 {
@@ -90,8 +90,8 @@ bool STM_BLDCMotor::update()
   _velocity = (1.0f - 0.0005f) * _velocity + 0.0005f * angle_diff * 20000.0f;
   _prev_angle = _angle;
   _integral_angle += angle_diff;
-  int hole_no = (int)((_angle + _velocity * 0.001f) / angle_width);
-//  int hole_no = (int)((_angle + _velocity * 0.00045f) / angle_width);
+//  int hole_no = (int)((_angle + _velocity * 0.001f) / angle_width);
+  int hole_no = (int)((_angle + _velocity * 0.00045f) / angle_width);
   _hole_state_no = hole_no % 6;
 
   return true;

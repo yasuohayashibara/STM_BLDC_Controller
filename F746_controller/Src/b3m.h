@@ -194,8 +194,8 @@ typedef struct {
   short CurrentPosition;
   short PreviousPosition;
   short DesiredVelosity;
-  short CurrentVelosity;
-  short PreviousVelosity;
+  short CurrentVelocity;
+  short PreviousVelocity;
   ushort DesiredTime;
   ushort RunningTime;
   ushort WorkingTime;
