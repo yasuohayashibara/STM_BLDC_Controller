@@ -23,6 +23,8 @@ public:
   int getc();
   
   int read(unsigned char *buf, unsigned int len);
+
+  void resetRead();
   
   int write(const void* buffer, size_t length);
   

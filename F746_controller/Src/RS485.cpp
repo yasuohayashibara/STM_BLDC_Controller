@@ -71,6 +71,11 @@ int RS485::read(unsigned char *buf, unsigned int len)
   }
   return length;
 }
+
+void RS485::resetRead()
+{
+  _rx_index = RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR;
+}
   
 int RS485::write(const void* buffer, size_t length)
 {

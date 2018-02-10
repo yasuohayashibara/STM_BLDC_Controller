@@ -156,8 +156,6 @@ volatile long time_ms = 0;
 STM_BLDCMotor *p_motor = NULL;
 int prev_hole_state = -1;
 ADConv *p_adc = NULL;
-//float adconv[1000][4];
-//int ad_no = -1;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -174,21 +172,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         prev_hole_state = hole_state;
       }
     }
-//    if (p_adc != NULL){
-//      p_adc->recvMeasuredVoltage();
-//      float vol1 = p_adc->getVoltage(0);
-//      float vol2 = p_adc->getVoltage(1);
-//      float vol3 = p_adc->getVoltage(2);
-//      p_adc->sendStartMeasure();
-//
-//      if (ad_no >= 0 && ad_no < 1000){
-//        adconv[ad_no][0] = vol1;
-//        adconv[ad_no][1] = vol2;
-//        adconv[ad_no][2] = vol3;
-//        adconv[ad_no][3] = prev_hole_state;
-//        ad_no ++;
-//      }
-//    }
   }
 }
 
@@ -303,11 +286,11 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-//  adc.sendStartMeasure();
   long prev_time_ms = time_ms;
   motor.servoOn();//  motor = 0.1;
 //  float prev_integrated_angle = 0.0;
   int prev_angle_sensor_counter = 0;
+  int prev_command_len = 0;
   for(long count = 0; ; count ++)
   {
     
@@ -320,9 +303,10 @@ int main(void)
 #ifdef USE_WAKEUP_MODE
     status.isWakeupMode = (count < 5000) ? true : false;
 #endif
+    if (command_len != 0 && prev_command_len == command_len) rs485.resetRead();
+    prev_command_len = command_len;
     command_len = rs485.read(command_data, MAX_COMMAND_LEN);
     int command = commnand_parser.setCommand(command_data, command_len);
-    command_len = 0;
     
     if (command == B3M_CMD_WRITE || command == B3M_CMD_READ){
       led2 = led2 ^ 1;
@@ -541,20 +525,10 @@ int main(void)
       if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
       if (c == 'q') motor._hole_state0_angle += 0.001f;
       if (c == 'w') motor._hole_state0_angle -= 0.001f;
-//      if (c == 'm') ad_no = 0;
       if (c == 'h') motor.controlHole(0,0.2);
 //      rs485.write(buf, strlen(buf));
     }
-//    if (count % 500 == 0) led1 = led1 ^ 1;
-    
-//    if (ad_no >= 1000){
-//      for(int i = 0; i < 1000;i ++){
-//        char buf[100];
-//        sprintf(buf, "%f %f %f %f\r\n", adconv[i][0], adconv[i][1], adconv[i][2], adconv[i][3]);
-//        rs485.write(buf, strlen(buf));
-//      }
-//      break;
-//    }
+//    if (count % 500 == 0) led1 = led1 ^ 1;    
 */
     while(time_ms == prev_time_ms);
     prev_time_ms = time_ms;
