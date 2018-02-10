@@ -78,7 +78,7 @@ DMA_HandleTypeDef hdma_usart1_tx;
 /* Private variables ---------------------------------------------------------*/
 
 // version { year, month, day, no }
-char version[4] = { 18, 02, 02, 1 };
+char version[4] = { 18, 02, 10, 1 };
 
 #define GAIN 10.0
 #define GAIN_I 0.0
@@ -274,7 +274,6 @@ int main(void)
   angle_sensor.startMeasure();
   HAL_Delay(100);
 
-//  initialize(angle_sensor.getAngleRad());
   initialize(0);
   led1 = 0;
   memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
@@ -392,6 +391,7 @@ int main(void)
               status.control_mode = B3M_OPTIONS_CONTROL_TORQUE;
             }
           }
+//          if (data == B3M_OPTIONS_RUN_HOLD) status.control_mode = B3M_OPTIONS_RUN_HOLD;
 //          status.initial_angle = status.target_angle = angle_sensor.getAngleRad();
           status.initial_angle = status.target_angle = 0;
           if (angle_sensor.getError()) break;
@@ -411,6 +411,7 @@ int main(void)
     
     status.target_total_angle += status.target_angle * 10 * period;
 //    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
+//    float error = status.target_total_angle - motor.getIntegratedAngleRad();
     float error = motor.getIntegratedAngleRad() - status.target_total_angle;
 //    while(error > M_PI) error -= 2.0f * M_PI;
 //    while(error < -M_PI) error += 2.0f * M_PI;
@@ -498,34 +499,41 @@ int main(void)
     }
 
 //    motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
-/*
-    float angle = angle_sensor.getAngleDeg();
+//    if (status.control_mode == B3M_OPTIONS_RUN_HOLD){
+#if 0
+    {
+      for(count = 0; ; count ++){
+        float angle = angle_sensor.getAngleDeg();
 
-    if (count % 100 == 0){
-      float ratio = motor;
-      float integrated_angle = motor.getIntegratedAngleRad();
-      float rot = (integrated_angle - prev_integrated_angle) / (2 * M_PI) * 10;
-      prev_integrated_angle = integrated_angle;
-      char buf[100];
-      sprintf(buf, "%f %f %f %f %d\r\n", ratio, rot, motor._hole_state0_angle, angle_sensor.getAngleRad(), prev_hole_state);
-//      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor.getIntegratedAngleRad()/29, prev_hole_state);
-//      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, as5600.getAngleRad(), prev_hole_state);
-      int c = rs485.getc();
-//      int len = rs485.read(command_data, MAX_COMMAND_LEN);
-//      int c = EOF;
-      if (c != EOF){
-        command_data[0] = c;
+        if (count % 200 == 0){
+          float ratio = motor;
+          float integrated_angle = motor.getIntegratedAngleRad();
+          float rot = (integrated_angle - prev_integrated_angle) / (2.0f * M_PI) / 0.2f * 32.0f;
+          prev_integrated_angle = integrated_angle;
+          char buf[100];
+          sprintf(buf, "%f %f %f %f %d\r\n", ratio, rot, motor.getHoleStateInitAngle(), angle_sensor.getAngleRad(), prev_hole_state);
+    //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor.getIntegratedAngleRad()/29, prev_hole_state);
+    //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, as5600.getAngleRad(), prev_hole_state);
+          int c = rs485.getc();
+    //      int len = rs485.read(command_data, MAX_COMMAND_LEN);
+    //      int c = EOF;
+    //      if (c != EOF){
+    //        command_data[0] = c;
+    //      }
+    //      int c = (len > 0) ? command_data[0] : EOF;
+          if (c == 'a' && motor <  0.5f) motor = motor + 0.1f;
+          if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
+          if (c == 'q') motor.setHoleStateInitAngle(motor.getHoleStateInitAngle() + 0.001f);
+          if (c == 'w') motor.setHoleStateInitAngle(motor.getHoleStateInitAngle() - 0.001f);
+          if (c == 'h') motor.controlHole(3,0.2);
+          rs485.write(buf, strlen(buf));
+        }
+        if (count % 500 == 0) led1 = led1 ^ 1;
+        while(time_ms == prev_time_ms);
+        prev_time_ms = time_ms;
       }
-//      int c = (len > 0) ? command_data[0] : EOF;
-      if (c == 'a' && motor <  0.5f) motor = motor + 0.1f;
-      if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
-      if (c == 'q') motor._hole_state0_angle += 0.001f;
-      if (c == 'w') motor._hole_state0_angle -= 0.001f;
-      if (c == 'h') motor.controlHole(0,0.2);
-//      rs485.write(buf, strlen(buf));
     }
-//    if (count % 500 == 0) led1 = led1 ^ 1;    
-*/
+#endif
     while(time_ms == prev_time_ms);
     prev_time_ms = time_ms;
     

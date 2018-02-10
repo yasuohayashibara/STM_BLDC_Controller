@@ -52,7 +52,7 @@ int RS485::getc()
   int ret = EOF;
   if (length > 0){
     ret = _rx_buf[_rx_index ++];
-    _rx_index %= RX_BUF_SIZE;
+    resetRead();
   }
   return ret;
 }
