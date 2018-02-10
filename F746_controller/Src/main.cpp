@@ -125,6 +125,7 @@ struct RobotStatus {
   int led_count;
   float err_i;
   int pulse_per_rotate;
+  int control_mode;
 } status;
 
 /* USER CODE END PV */
@@ -197,6 +198,7 @@ void initialize(float angle)
   status.change_target = false;
   status.isWakeupMode = false;
   status.err_i = 0.0;
+  status.control_mode = B3M_OPTIONS_RUN_FREE;
   
   memset((void *)&property, 0, sizeof(property));
   property.ID = 0;
@@ -272,7 +274,8 @@ int main(void)
   angle_sensor.startMeasure();
   HAL_Delay(100);
 
-  initialize(angle_sensor.getAngleRad());
+//  initialize(angle_sensor.getAngleRad());
+  initialize(0);
   led1 = 0;
   memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
   
@@ -314,7 +317,7 @@ int main(void)
     } else if (command == B3M_CMD_LOAD){
       memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
     } else if (command == B3M_CMD_RESET){      
-      initialize(angle_sensor.getAngleRad());
+      initialize(0);
       led2 = led3 = led4 = 1;
       HAL_Delay(1000);
       led2 = led3 = led4 = 0;
@@ -379,9 +382,16 @@ int main(void)
           property.Kp1 = data;
           break;
         case B3M_SERVO_SERVO_MODE:
-          status.is_servo_on = (data == 0) ? true : false;
+          status.is_servo_on = (data == B3M_OPTIONS_CONTROL_POSITION || data == B3M_OPTIONS_CONTROL_VELOCITY  || data == B3M_OPTIONS_CONTROL_TORQUE) ? true : false;
           led3 = (status.is_servo_on) ? 1 : 0;
-          
+          if (status.is_servo_on) {
+            if (data == B3M_OPTIONS_CONTROL_VELOCITY) {
+              status.control_mode = B3M_OPTIONS_CONTROL_VELOCITY;
+              status.target_total_angle = motor.getIntegratedAngleRad();
+            } else {
+              status.control_mode = B3M_OPTIONS_CONTROL_TORQUE;
+            }
+          }
 //          status.initial_angle = status.target_angle = angle_sensor.getAngleRad();
           status.initial_angle = status.target_angle = 0;
           if (angle_sensor.getError()) break;
@@ -397,14 +407,13 @@ int main(void)
     float period = 0.001f;
     float velocity = (motor.getIntegratedAngleRad() - prev_integrated_angle) / period;
     prev_integrated_angle = motor.getIntegratedAngleRad();
-    property.CurrentVelocity = rad2deg100(velocity / 10.0);
+    property.CurrentVelocity = rad2deg100(velocity / 10.0f);
     
-    status.target_total_angle += status.target_angle * period;
+    status.target_total_angle += status.target_angle * 10 * period;
 //    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
-//    float error = status.target_total_angle - motor.getIntegratedAngleRad();
     float error = motor.getIntegratedAngleRad() - status.target_total_angle;
-    while(error > M_PI) error -= 2.0f * M_PI;
-    while(error < -M_PI) error += 2.0f * M_PI;
+//    while(error > M_PI) error -= 2.0f * M_PI;
+//    while(error < -M_PI) error += 2.0f * M_PI;
     status.err_i += error * 0.001f;
     status.err_i = max(min(status.err_i, 0.001f), -0.001f); 
     
@@ -414,7 +423,7 @@ int main(void)
     float gain_i = property.Ki0 / 100.0f;
     float punch = property.StaticFriction0 / 100.0f;
     float pwm = gain_i * status.err_i;
-    pwm += gain_d * (status.target_angle - deg100_2rad(property.CurrentVelocity));
+    pwm += gain_d * (status.target_angle * 10 - velocity);
     float margin = deg100_2rad(property.DeadBandWidth);
     if (fabs(error) > margin){
       if (error > 0){
@@ -427,7 +436,9 @@ int main(void)
     } else {
         pwm += gain1 * error;
     }
-    pwm = status.target_angle / M_PI;
+    if (status.control_mode == B3M_OPTIONS_CONTROL_TORQUE) {    // Torque control mode
+      pwm = status.target_angle / M_PI;
+    }
     float max_torque = property.TorqueLimit / 100.0f;
     float val = max(min(pwm, max_torque), -max_torque);
     if (status.isWakeupMode) val *= 0.3f;
