@@ -52,6 +52,8 @@ public:
 
     float getIntegratedAngleRad();
     
+    float getWheelAngleRad();
+    
     void status_changed(void);
 
     void resetHoleSensorCount();
@@ -99,6 +101,7 @@ private:
     float _hole_state0_angle;
     float _angle;
     float _integral_angle;
+    float _wheel_angle;
     float _prev_angle;
     float _velocity;
 

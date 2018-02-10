@@ -391,7 +391,7 @@ int main(void)
     }
 
     property.PreviousPosition = property.CurrentPosition;
-    short current_position = rad2deg100(angle_sensor.getAngleRad() + status.initial_angle);
+    short current_position = rad2deg100(motor.getWheelAngleRad());
     
     property.CurrentPosition = current_position;
     float period = 0.001f;

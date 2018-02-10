@@ -9,7 +9,7 @@
 #define WHEEL_MOTOR_HOLE0_ANGLE2 2.804288f
 #define WHEEL_MOTOR_HOLE0_ANGLE3 2.804288f
 #define WHEEL_MOTOR_HOLE0_ANGLE4 2.804288f
-#define REDUCTION_RATIO 29.0f
+#define REDUCTION_RATIO 32.0f
 
 #define HOLE_STATE0   0x05  // 101  ( 0deg - 60deg)
 #define HOLE_STATE1   0x04  // 100  ( 60deg - 120deg)
@@ -45,7 +45,7 @@ STM_BLDCMotor::STM_BLDCMotor(TIM_HandleTypeDef *htim, AngleSensor *angle_sensor)
   _wh(_htim, TIM_CHANNEL_3), _wl(L3_GPIO_Port, L3_Pin),
   _value(0.0f), _max_ratio(0.5f), _enable(false), _fix_hole(false),
   _hole_state_no(0), _hole_state0_angle(WHEEL_MOTOR_HOLE0_ANGLE1),
-  _angle(0), _integral_angle(0), _prev_angle(0), _velocity(0),
+  _angle(0), _integral_angle(0), _wheel_angle(0), _prev_angle(0), _velocity(0),
   _angle_sensor(angle_sensor)
 {
   HAL_TIM_PWM_Start(_htim, TIM_CHANNEL_1);
@@ -103,6 +103,8 @@ bool STM_BLDCMotor::update()
   _velocity = (1.0f - 0.0005f) * _velocity + 0.0005f * angle_diff * 20000.0f;
   _prev_angle = _angle;
   _integral_angle += (angle_diff / REDUCTION_RATIO);
+  _wheel_angle += (angle_diff / REDUCTION_RATIO);
+  _wheel_angle = maxPI(_wheel_angle);
 //  int hole_no = (int)((_angle + _velocity * 0.001f) / angle_width);
   int hole_no = (int)((_angle + _velocity * 0.00045f) / angle_width);
   _hole_state_no = hole_no % 6;
@@ -118,6 +120,11 @@ int STM_BLDCMotor::getHoleState()
 float STM_BLDCMotor::getIntegratedAngleRad()
 {
   return _integral_angle;
+}
+
+float STM_BLDCMotor::getWheelAngleRad()
+{
+  return _wheel_angle;
 }
 
 void STM_BLDCMotor::status_changed(void)
