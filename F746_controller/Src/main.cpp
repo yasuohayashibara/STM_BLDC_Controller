@@ -278,7 +278,7 @@ int main(void)
 
   initialize(0);
   led1 = 0;
-//  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
   
 //  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
@@ -414,7 +414,7 @@ int main(void)
     status.target_total_angle += status.target_angle * 10 * period;
 //    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
 //    float error = status.target_total_angle - motor.getIntegratedAngleRad();
-    float error = motor.getIntegratedAngleRad() - status.target_total_angle;
+    float error = status.target_total_angle - motor.getIntegratedAngleRad();
 //    while(error > M_PI) error -= 2.0f * M_PI;
 //    while(error < -M_PI) error += 2.0f * M_PI;
     status.err_i += error * 0.001f;
