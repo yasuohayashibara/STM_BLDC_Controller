@@ -63,8 +63,6 @@ ADC_HandleTypeDef hadc2;
 ADC_HandleTypeDef hadc3;
 
 I2C_HandleTypeDef hi2c2;
-DMA_HandleTypeDef hdma_i2c2_rx;
-DMA_HandleTypeDef hdma_i2c2_tx;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -78,7 +76,7 @@ DMA_HandleTypeDef hdma_usart1_tx;
 /* Private variables ---------------------------------------------------------*/
 
 // version { year, month, day, no }
-char version[4] = { 18, 02, 10, 1 };
+char version[4] = { 18, 02, 15, 1 };
 
 #define GAIN 10.0
 #define GAIN_I 0.0
@@ -255,7 +253,11 @@ int main(void)
 
   LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
+#ifdef USE_AS5600
+  AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
+#else
   AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5048B);
+#endif
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
@@ -276,7 +278,7 @@ int main(void)
 
   initialize(0);
   led1 = 0;
-  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+//  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
   
 //  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
@@ -788,8 +790,7 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
-//  hi2c2.Init.Timing = 0x00200105;
-  hi2c2.Init.Timing = 0x00610611;
+  hi2c2.Init.Timing = 0x00200105;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -972,16 +973,9 @@ static void MX_USART1_UART_Init(void)
 static void MX_DMA_Init(void) 
 {
   /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream2_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
-  /* DMA1_Stream7_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
   /* DMA2_Stream2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);

@@ -2,10 +2,10 @@
 
 RS485 *p_rs485 = NULL;
 
-static const int RX_BUF_SIZE = 48;
-static const int TX_BUF_SIZE = 512;
-static uint8_t _tx_buf[TX_BUF_SIZE];
-static uint8_t _rx_buf[RX_BUF_SIZE];
+static const int RX_BUF_SIZE = 2048;
+static const int TX_BUF_SIZE = 2048;
+static volatile uint8_t _rx_buf[RX_BUF_SIZE];
+static volatile uint8_t _tx_buf[TX_BUF_SIZE];
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -13,7 +13,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
   if (huart->Instance == USART1)
   {
     HAL_UART_DMAStop(p_rs485->_huart);
-    HAL_UART_Receive_DMA(p_rs485->_huart, _rx_buf, RX_BUF_SIZE);
+    HAL_UART_Receive_DMA(p_rs485->_huart, (uint8_t *)_rx_buf, RX_BUF_SIZE);
     p_rs485->_rx_index = 0;
     p_rs485->setDirection(RS485::INPUT);
   }
@@ -28,7 +28,7 @@ RS485::RS485(UART_HandleTypeDef *huart) :
   __HAL_UART_DISABLE_IT(_huart, UART_IT_PE);
   /* Disable the UART Error Interrupt: (Frame error, noise error, overrun error) */
   __HAL_UART_DISABLE_IT(_huart, UART_IT_ERR);
-  HAL_UART_Receive_DMA(_huart, _rx_buf, RX_BUF_SIZE);
+  HAL_UART_Receive_DMA(_huart, (uint8_t *)_rx_buf, RX_BUF_SIZE);
 }
 
 void RS485::setDirection(int status) {
@@ -41,7 +41,7 @@ char RS485::putc(int c)
 {
   _tx_buf[0] = c;
   setDirection(OUTPUT);
-  HAL_StatusTypeDef res = HAL_UART_Transmit_DMA(_huart, _tx_buf, 1);
+  HAL_StatusTypeDef res = HAL_UART_Transmit_DMA(_huart, (uint8_t *)_tx_buf, 1);
   return res == HAL_OK ? c : EOF;
 }
 
@@ -80,12 +80,12 @@ void RS485::resetRead()
 int RS485::write(const void* buffer, size_t length)
 {
   unsigned char *buf = (unsigned char *)buffer;
-  unsigned char *tx_buf = _tx_buf;
+  unsigned char *tx_buf = (uint8_t *)_tx_buf;
   for(int i = 0; i < length; i ++){
     *tx_buf ++ = *buf ++;
   }
   setDirection(OUTPUT);
-  while(HAL_UART_Transmit_DMA(_huart, _tx_buf, length) != HAL_OK);
+  while(HAL_UART_Transmit_DMA(_huart, (uint8_t *)_tx_buf, length) != HAL_OK);
   return length;
 }
   
