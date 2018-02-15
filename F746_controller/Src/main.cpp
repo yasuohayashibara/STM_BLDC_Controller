@@ -525,7 +525,7 @@ int main(void)
           if (c == 'z' && motor > -0.5f) motor = motor - 0.1f;
           if (c == 'q') motor.setHoleStateInitAngle(motor.getHoleStateInitAngle() + 0.001f);
           if (c == 'w') motor.setHoleStateInitAngle(motor.getHoleStateInitAngle() - 0.001f);
-          if (c == 'h') motor.controlHole(3,0.2);
+          if (c == 'h') motor.controlHole(0,0.2);
           rs485.write(buf, strlen(buf));
         }
         if (count % 500 == 0) led1 = led1 ^ 1;

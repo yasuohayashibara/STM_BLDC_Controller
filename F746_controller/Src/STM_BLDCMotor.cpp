@@ -6,9 +6,9 @@
 
 #define TEST_MOTOR_HOLE0_ANGLE 3.038024f
 #define WHEEL_MOTOR_HOLE0_ANGLE1 2.804288f
-#define WHEEL_MOTOR_HOLE0_ANGLE2 2.804288f
-#define WHEEL_MOTOR_HOLE0_ANGLE3 2.804288f
-#define WHEEL_MOTOR_HOLE0_ANGLE4 2.804288f
+#define WHEEL_MOTOR_HOLE0_ANGLE2 2.618706f
+#define WHEEL_MOTOR_HOLE0_ANGLE3 2.620362f
+#define WHEEL_MOTOR_HOLE0_ANGLE4 2.573328f
 #define REDUCTION_RATIO 32.0f
 
 #define HOLE_STATE0   0x05  // 101  ( 0deg - 60deg)
@@ -44,7 +44,7 @@ STM_BLDCMotor::STM_BLDCMotor(TIM_HandleTypeDef *htim, AngleSensor *angle_sensor)
   _vh(_htim, TIM_CHANNEL_2), _vl(L2_GPIO_Port, L2_Pin),
   _wh(_htim, TIM_CHANNEL_3), _wl(L3_GPIO_Port, L3_Pin),
   _value(0.0f), _max_ratio(0.5f), _enable(false), _fix_hole(false),
-  _hole_state_no(0), _hole_state0_angle(WHEEL_MOTOR_HOLE0_ANGLE1),
+  _hole_state_no(0), _hole_state0_angle(WHEEL_MOTOR_HOLE0_ANGLE4),
   _angle(0), _integral_angle(0), _wheel_angle(0), _prev_angle(0), _velocity(0),
   _angle_sensor(angle_sensor)
 {
