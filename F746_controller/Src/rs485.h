@@ -22,19 +22,19 @@ public:
   
   int getc();
   
-  int read(char *buf);
+  int read(unsigned char *buf, unsigned int len);
+
+  void resetRead();
   
   int write(const void* buffer, size_t length);
   
   int printf(const char* format, ...);
 
-private:
   UART_HandleTypeDef *_huart;
 
-  static const int TX_BUF_SIZE = 16;
-  static const int RX_BUF_SIZE = 256;
-  unsigned char _tx_buf[TX_BUF_SIZE];
-  unsigned char _rx_buf[RX_BUF_SIZE];
+  int _rx_index;
+
+  int _direction;
 };
 
 #endif
