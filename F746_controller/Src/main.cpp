@@ -159,7 +159,9 @@ int prev_hole_state = -1;
 ADConv *p_adc = NULL;
 int prev_read_buffer_len = 0;
 RS485 *p_rs485_main = NULL;
-Parser *p_parser;
+Parser *p_parser = NULL;
+int guard_counter = 0;
+int command = 0;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -176,14 +178,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   else if(htim->Instance == TIM5) // 100us timer (RS485)
   {
-//    if (p_rs485_main != NULL){
-//      int read_buffer_len = p_rs485_main->readBufferLen(); // guard time > 100us
-//      if (read_buffer_len != 0 && read_buffer_len == prev_read_buffer_len) {
-//        int command_len = p_rs485_main->read(command_data, MAX_COMMAND_LEN);
-//        int command = p_parser->setCommand(command_data, command_len);
-//      }
-//      prev_read_buffer_len = read_buffer_len;
-//    }
+    if (p_rs485_main != NULL &&  p_parser != NULL){
+      int read_buffer_len = p_rs485_main->readBufferLen(); // guard time > 100us
+      if (read_buffer_len != 0 && read_buffer_len == prev_read_buffer_len) {
+        int command_len = p_rs485_main->read(command_data, MAX_COMMAND_LEN);
+        int command_temp = p_parser->setCommand(command_data, command_len);
+        if (command_temp != 0) {
+          command = command_temp;
+        }
+        if (p_rs485_main->_direction == RS485::INPUT) p_rs485_main->resetRead();
+        if (send_buf_len == 0) {
+          send_buf_len = p_parser->getReply(send_buf);
+        }
+        guard_counter = 2;
+      }
+      if (send_buf_len > 0 && guard_counter == 0) {
+        p_rs485_main->write(send_buf, send_buf_len);
+        send_buf_len = 0;
+      }
+      if (guard_counter > 0) guard_counter --;
+      prev_read_buffer_len = read_buffer_len;
+    }
   }
   else if(htim->Instance == TIM3) // 1ms timer (main loop)
   {
@@ -279,6 +294,7 @@ int main(void)
 #endif
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
+  HAL_TIM_Base_Start_IT(&htim5);
   ADConv adc(&hadc1, &hadc2, &hadc3);
   p_adc = &adc;
   STM_BLDCMotor motor(&htim4, &angle_sensor);
@@ -328,12 +344,6 @@ int main(void)
 #ifdef USE_WAKEUP_MODE
     status.isWakeupMode = (count < 5000) ? true : false;
 #endif
-    if (command_len != 0 && prev_command_len == command_len){
-      rs485.resetRead();
-    }
-    prev_command_len = command_len;
-    command_len = rs485.read(command_data, MAX_COMMAND_LEN);
-    int command = commnand_parser.setCommand(command_data, command_len);
     
     if (command == B3M_CMD_WRITE || command == B3M_CMD_READ){
       led2 = led2 ^ 1;
@@ -358,6 +368,7 @@ int main(void)
       }
       led4 = 0;
     }
+    command = 0;
     
     int address, data;
     int com_num = commnand_parser.getNextCommand(&address, &data);
@@ -473,15 +484,7 @@ int main(void)
     if (status.is_servo_on) motor = val;
     else motor = 0;
     property.PwmDuty = motor * 100;
-    
-    if (send_buf_len == 0){
-      send_buf_len = commnand_parser.getReply(send_buf);
-    }
-    if (send_buf_len > 0){
-      rs485.write(send_buf, send_buf_len);
-      send_buf_len = 0;
-    }
-    
+        
     if ((is_status_changed)||(time_from_last_update >= 10)){
       motor.status_changed();
       is_status_changed = false;
@@ -983,7 +986,7 @@ static void MX_TIM5_Init(void)
   htim5.Instance = TIM5;
   htim5.Init.Prescaler = 108-1;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 1-1;
+  htim5.Init.Period = 100-1;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
