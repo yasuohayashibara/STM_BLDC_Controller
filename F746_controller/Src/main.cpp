@@ -99,7 +99,7 @@ char version[4] = { 18, 02, 15, 1 };
 
 extern Property property;
 
-static const unsigned int MAX_COMMAND_LEN = 2048;
+static const unsigned int MAX_COMMAND_LEN = 2048; 
 unsigned char command_data[MAX_COMMAND_LEN];
 int command_len = 0;
 const int LED_TOGGLE_COUNT = 500;
@@ -157,13 +157,13 @@ volatile long time_ms = 0;
 STM_BLDCMotor *p_motor = NULL;
 int prev_hole_state = -1;
 ADConv *p_adc = NULL;
+int prev_read_buffer_len = 0;
+RS485 *p_rs485_main = NULL;
+Parser *p_parser;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  if(htim->Instance == TIM3)
-  {
-    time_ms ++;
-  } else if(htim->Instance == TIM4)
+  if(htim->Instance == TIM4)      // PWM
   {
     if (p_motor != NULL){
       p_motor->update();
@@ -173,6 +173,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         prev_hole_state = hole_state;
       }
     }
+  }
+  else if(htim->Instance == TIM5) // 100us timer (RS485)
+  {
+//    if (p_rs485_main != NULL){
+//      int read_buffer_len = p_rs485_main->readBufferLen(); // guard time > 100us
+//      if (read_buffer_len != 0 && read_buffer_len == prev_read_buffer_len) {
+//        int command_len = p_rs485_main->read(command_data, MAX_COMMAND_LEN);
+//        int command = p_parser->setCommand(command_data, command_len);
+//      }
+//      prev_read_buffer_len = read_buffer_len;
+//    }
+  }
+  else if(htim->Instance == TIM3) // 1ms timer (main loop)
+  {
+    time_ms ++;
   }
 }
 
@@ -256,6 +271,7 @@ int main(void)
 
   LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
+  p_rs485_main = &rs485;
 #ifdef USE_AS5600
   AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
 #else
@@ -268,6 +284,7 @@ int main(void)
   STM_BLDCMotor motor(&htim4, &angle_sensor);
   p_motor = &motor;
   Parser commnand_parser;
+  p_parser = &commnand_parser;
   Flash flash;
 
   bool is_status_changed = false;
@@ -282,6 +299,8 @@ int main(void)
   initialize(0);
   led1 = 0;
   memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+  if (property.dummy1 != 100) initialize(0);
+  property.dummy1 = 100;  // saved rom flag
   
 //  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];

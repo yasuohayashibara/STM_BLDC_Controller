@@ -9,6 +9,8 @@
 
 Property property;
 
+unsigned char command_buf[Parser::MAX_COMMAND_LEN];
+
 char property_size[sizeof(Property)];
 
 /*!
