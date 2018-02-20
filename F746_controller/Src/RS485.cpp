@@ -73,6 +73,12 @@ int RS485::read(unsigned char *buf, unsigned int len)
   return length;
 }
 
+int RS485::readBufferLen()
+{
+  size_t length = (RX_BUF_SIZE + (RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR) - _rx_index) % RX_BUF_SIZE;
+  return (int)length;
+}
+
 void RS485::resetRead()
 {
   HAL_UART_DMAStop(p_rs485->_huart);
