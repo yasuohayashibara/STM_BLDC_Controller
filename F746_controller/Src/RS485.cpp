@@ -4,8 +4,8 @@ RS485 *p_rs485 = NULL;
 
 static const int RX_BUF_SIZE = 2048;
 static const int TX_BUF_SIZE = 2048;
-static volatile uint8_t _rx_buf[RX_BUF_SIZE];
-static volatile uint8_t _tx_buf[TX_BUF_SIZE];
+static uint8_t _rx_buf[RX_BUF_SIZE];
+static uint8_t _tx_buf[TX_BUF_SIZE];
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -61,6 +61,7 @@ int RS485::read(unsigned char *buf, unsigned int len)
 {
   if (_direction == OUTPUT) return 0;
   size_t length = (RX_BUF_SIZE + (RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR) - _rx_index) % RX_BUF_SIZE;
+  length = (length > len) ? len : length;
   if (length > 0){
     if (length == _rx_buf[_rx_index]){
       for(int i = 0; i < length; i ++) {
@@ -72,9 +73,18 @@ int RS485::read(unsigned char *buf, unsigned int len)
   return length;
 }
 
+int RS485::readBufferLen()
+{
+  size_t length = (RX_BUF_SIZE + (RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR) - _rx_index) % RX_BUF_SIZE;
+  return (int)length;
+}
+
 void RS485::resetRead()
 {
-  _rx_index = RX_BUF_SIZE - _huart->hdmarx->Instance->NDTR;
+  HAL_UART_DMAStop(p_rs485->_huart);
+  HAL_UART_Receive_DMA(p_rs485->_huart, (uint8_t *)_rx_buf, RX_BUF_SIZE);
+  _rx_index = 0;
+  setDirection(RS485::INPUT);
 }
   
 int RS485::write(const void* buffer, size_t length)

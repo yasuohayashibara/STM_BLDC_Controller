@@ -67,6 +67,7 @@ I2C_HandleTypeDef hi2c2;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim5;
 
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
@@ -98,7 +99,7 @@ char version[4] = { 18, 02, 15, 1 };
 
 extern Property property;
 
-static const unsigned int MAX_COMMAND_LEN = 256; 
+static const unsigned int MAX_COMMAND_LEN = 2048; 
 unsigned char command_data[MAX_COMMAND_LEN];
 int command_len = 0;
 const int LED_TOGGLE_COUNT = 500;
@@ -140,6 +141,7 @@ static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM5_Init(void);
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
@@ -155,13 +157,15 @@ volatile long time_ms = 0;
 STM_BLDCMotor *p_motor = NULL;
 int prev_hole_state = -1;
 ADConv *p_adc = NULL;
+int prev_read_buffer_len = 0;
+RS485 *p_rs485_main = NULL;
+Parser *p_parser = NULL;
+int guard_counter = 0;
+int command = 0;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  if(htim->Instance == TIM3)
-  {
-    time_ms ++;
-  } else if(htim->Instance == TIM4)
+  if(htim->Instance == TIM4)      // PWM
   {
     if (p_motor != NULL){
       p_motor->update();
@@ -171,6 +175,34 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         prev_hole_state = hole_state;
       }
     }
+  }
+  else if(htim->Instance == TIM5) // 100us timer (RS485)
+  {
+    if (p_rs485_main != NULL &&  p_parser != NULL){
+      int read_buffer_len = p_rs485_main->readBufferLen(); // guard time > 100us
+      if (read_buffer_len != 0 && read_buffer_len == prev_read_buffer_len) {
+        int command_len = p_rs485_main->read(command_data, MAX_COMMAND_LEN);
+        int command_temp = p_parser->setCommand(command_data, command_len);
+        if (command_temp != 0) {
+          command = command_temp;
+        }
+        if (p_rs485_main->_direction == RS485::INPUT) p_rs485_main->resetRead();
+        if (send_buf_len == 0) {
+          send_buf_len = p_parser->getReply(send_buf);
+        }
+        guard_counter = 2;
+      }
+      if (send_buf_len > 0 && guard_counter == 0) {
+        p_rs485_main->write(send_buf, send_buf_len);
+        send_buf_len = 0;
+      }
+      if (guard_counter > 0) guard_counter --;
+      prev_read_buffer_len = read_buffer_len;
+    }
+  }
+  else if(htim->Instance == TIM3) // 1ms timer (main loop)
+  {
+    time_ms ++;
   }
 }
 
@@ -248,11 +280,13 @@ int main(void)
   MX_TIM4_Init();
   MX_USART1_UART_Init();
   MX_TIM2_Init();
+  MX_TIM5_Init();
 
   /* USER CODE BEGIN 2 */
 
   LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
+  p_rs485_main = &rs485;
 #ifdef USE_AS5600
   AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
 #else
@@ -260,11 +294,13 @@ int main(void)
 #endif
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
+  HAL_TIM_Base_Start_IT(&htim5);
   ADConv adc(&hadc1, &hadc2, &hadc3);
   p_adc = &adc;
   STM_BLDCMotor motor(&htim4, &angle_sensor);
   p_motor = &motor;
   Parser commnand_parser;
+  p_parser = &commnand_parser;
   Flash flash;
 
   bool is_status_changed = false;
@@ -279,6 +315,8 @@ int main(void)
   initialize(0);
   led1 = 0;
   memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+  if (property.dummy1 != 100) initialize(0);
+  property.dummy1 = 100;  // saved rom flag
   
 //  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
@@ -306,10 +344,6 @@ int main(void)
 #ifdef USE_WAKEUP_MODE
     status.isWakeupMode = (count < 5000) ? true : false;
 #endif
-    if (command_len != 0 && prev_command_len == command_len) rs485.resetRead();
-    prev_command_len = command_len;
-    command_len = rs485.read(command_data, MAX_COMMAND_LEN);
-    int command = commnand_parser.setCommand(command_data, command_len);
     
     if (command == B3M_CMD_WRITE || command == B3M_CMD_READ){
       led2 = led2 ^ 1;
@@ -334,6 +368,7 @@ int main(void)
       }
       led4 = 0;
     }
+    command = 0;
     
     int address, data;
     int com_num = commnand_parser.getNextCommand(&address, &data);
@@ -449,15 +484,7 @@ int main(void)
     if (status.is_servo_on) motor = val;
     else motor = 0;
     property.PwmDuty = motor * 100;
-    
-    if (send_buf_len == 0){
-      send_buf_len = commnand_parser.getReply(send_buf);
-    }
-    if (send_buf_len > 0){
-      rs485.write(send_buf, send_buf_len);
-      send_buf_len = 0;
-    }
-    
+        
     if ((is_status_changed)||(time_from_last_update >= 10)){
       motor.status_changed();
       is_status_changed = false;
@@ -790,7 +817,11 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
+#ifdef USE_AS5600
   hi2c2.Init.Timing = 0x00200105;
+#else
+  hi2c2.Init.Timing = 0x00610611;
+#endif
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -942,6 +973,39 @@ static void MX_TIM4_Init(void)
   }
 
   HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/* TIM5 init function */
+static void MX_TIM5_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 108-1;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 100-1;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
 
 }
 

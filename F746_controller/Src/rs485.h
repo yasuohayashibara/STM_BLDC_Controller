@@ -24,6 +24,8 @@ public:
   
   int read(unsigned char *buf, unsigned int len);
 
+  int readBufferLen();
+
   void resetRead();
   
   int write(const void* buffer, size_t length);
