@@ -10,7 +10,7 @@
 
 class Parser
 {
-  static const int MAX_COMMAND_LEN = 256;
+  static const int MAX_COMMAND_LEN = 2048;
   static const int MAX_STOCKED_COMMAND = 32;
 public:
   Parser();

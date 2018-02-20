@@ -98,7 +98,7 @@ char version[4] = { 18, 02, 15, 1 };
 
 extern Property property;
 
-static const unsigned int MAX_COMMAND_LEN = 256; 
+static const unsigned int MAX_COMMAND_LEN = 2048;
 unsigned char command_data[MAX_COMMAND_LEN];
 int command_len = 0;
 const int LED_TOGGLE_COUNT = 500;
@@ -306,7 +306,9 @@ int main(void)
 #ifdef USE_WAKEUP_MODE
     status.isWakeupMode = (count < 5000) ? true : false;
 #endif
-    if (command_len != 0 && prev_command_len == command_len) rs485.resetRead();
+    if (command_len != 0 && prev_command_len == command_len){
+      rs485.resetRead();
+    }
     prev_command_len = command_len;
     command_len = rs485.read(command_data, MAX_COMMAND_LEN);
     int command = commnand_parser.setCommand(command_data, command_len);
@@ -790,7 +792,11 @@ static void MX_I2C2_Init(void)
 {
 
   hi2c2.Instance = I2C2;
+#ifdef USE_AS5600
   hi2c2.Init.Timing = 0x00200105;
+#else
+  hi2c2.Init.Timing = 0x00610611;
+#endif
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
