@@ -81,7 +81,7 @@ char version[4] = { 18, 02, 15, 1 };
 #define GAIN 10.0
 #define GAIN_I 0.0
 #define PUNCH 0.0
-#define DEAD_BAND_WIDTH 0.1
+#define DEAD_BAND_WIDTH 0.0
 #define MAX_ANGLE 60.0
 #define MIN_ANGLE -60.0
 #define BAUDRATE 1500000
@@ -251,13 +251,12 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
+  initialize(0);
+  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
+
   LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
-#ifdef USE_AS5600
-  AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5600);
-#else
-  AngleSensor angle_sensor(&hi2c2, AngleSensor::AS5048B);
-#endif
+  AngleSensor angle_sensor(&hi2c2, (property.MCUTempLimit == 0) ? AngleSensor::AS5600 : AngleSensor::AS5048B);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   ADConv adc(&hadc1, &hadc2, &hadc3);
@@ -275,12 +274,8 @@ int main(void)
   HAL_Delay(100);
   angle_sensor.startMeasure();
   HAL_Delay(100);
-
-  initialize(0);
-  led1 = 0;
-  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
   
-//  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
+  motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
   property.FwVersion = (version[0] << 24) + (version[1] << 16) + (version[2] << 8) + version[3];
   status.pulse_per_rotate = property.MCUTempLimit;
   if (status.pulse_per_rotate <= 0) status.pulse_per_rotate = 2000.0f;
@@ -410,6 +405,7 @@ int main(void)
     float velocity = (motor.getIntegratedAngleRad() - prev_integrated_angle) / period;
     prev_integrated_angle = motor.getIntegratedAngleRad();
     property.CurrentVelocity = rad2deg100(velocity / 10.0f);
+    property.DesiredVelosity = rad2deg100(status.target_angle);
     
     status.target_total_angle += status.target_angle * 10 * period;
 //    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
@@ -500,7 +496,7 @@ int main(void)
       prev_angle_sensor_counter = angle_sensor.counter;
     }
 
-//    motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
+    motor.setHoleStateInitAngle(deg100_2rad(property.PositionCenterOffset));
 //    if (status.control_mode == B3M_OPTIONS_RUN_HOLD){
 #if 0
     {

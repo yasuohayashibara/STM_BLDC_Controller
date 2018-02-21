@@ -4,11 +4,11 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-#define TEST_MOTOR_HOLE0_ANGLE 3.038024f
-#define WHEEL_MOTOR_HOLE0_ANGLE1 2.804288f
-#define WHEEL_MOTOR_HOLE0_ANGLE2 2.618706f
-#define WHEEL_MOTOR_HOLE0_ANGLE3 2.620362f
-#define WHEEL_MOTOR_HOLE0_ANGLE4 2.573328f
+#define TEST_MOTOR_HOLE0_ANGLE 3.038024f  // 17406 radx100
+#define WHEEL_MOTOR_HOLE0_ANGLE1 2.804288f  // 16067 radx100
+#define WHEEL_MOTOR_HOLE0_ANGLE2 2.618706f  // 15004 radx100
+#define WHEEL_MOTOR_HOLE0_ANGLE3 2.620362f  // 15013 radx100
+#define WHEEL_MOTOR_HOLE0_ANGLE4 2.573328f  // 14744 radx100
 #define REDUCTION_RATIO 32.0f
 
 #define HOLE_STATE0   0x05  // 101  ( 0deg - 60deg)
