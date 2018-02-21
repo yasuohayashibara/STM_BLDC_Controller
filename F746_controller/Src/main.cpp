@@ -77,7 +77,7 @@ DMA_HandleTypeDef hdma_usart1_tx;
 /* Private variables ---------------------------------------------------------*/
 
 // version { year, month, day, no }
-char version[4] = { 18, 02, 15, 1 };
+char version[4] = { 18, 02, 21, 2 };
 
 #define GAIN 10.0
 #define GAIN_I 0.0
@@ -259,6 +259,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  initialize(0);
+  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
 
   /* USER CODE END Init */
 
@@ -283,15 +285,12 @@ int main(void)
   MX_TIM5_Init();
 
   /* USER CODE BEGIN 2 */
-
-  initialize(0);
-  memcpy((void *)&property, (void *)FLASH_ADDRESS, sizeof(property));
-
   LED led1(0), led2(1), led3(2), led4(3);
   RS485 rs485(&huart1);
 
   p_rs485_main = &rs485;
   AngleSensor angle_sensor(&hi2c2, (property.MCUTempLimit == 0) ? AngleSensor::AS5600 : AngleSensor::AS5048B);
+  float dir = (property.MotorTempLimit == 0) ? 1.0 : -1.0;
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   HAL_TIM_Base_Start_IT(&htim5);
@@ -325,7 +324,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   long prev_time_ms = time_ms;
   motor.servoOn();//  motor = 0.1;
-  float prev_integrated_angle = motor.getIntegratedAngleRad();
+  float prev_integrated_angle = dir * motor.getIntegratedAngleRad();
   int prev_angle_sensor_counter = 0;
   for(long count = 0; ; count ++)
   {
@@ -384,6 +383,9 @@ int main(void)
         case B3M_SYSTEM_MCU_TEMP_LIMIT:
           property.MCUTempLimit = data;
           break;
+        case B3M_SYSTEM_MOTOR_TEMP_LIMIT:
+          property.MotorTempLimit = data;
+          break;
         case B3M_SYSTEM_DEADBAND_WIDTH:
           property.DeadBandWidth = data;
           break;
@@ -418,7 +420,7 @@ int main(void)
           if (status.is_servo_on) {
             if (data == B3M_OPTIONS_CONTROL_VELOCITY) {
               status.control_mode = B3M_OPTIONS_CONTROL_VELOCITY;
-              status.target_total_angle = motor.getIntegratedAngleRad();
+              status.target_total_angle = dir * motor.getIntegratedAngleRad();
             } else {
               status.control_mode = B3M_OPTIONS_CONTROL_TORQUE;
             }
@@ -437,15 +439,15 @@ int main(void)
     
     property.CurrentPosition = current_position;
     float period = 0.001f;
-    float velocity = (motor.getIntegratedAngleRad() - prev_integrated_angle) / period;
-    prev_integrated_angle = motor.getIntegratedAngleRad();
+    float velocity = (dir * motor.getIntegratedAngleRad() - prev_integrated_angle) / period;
+    prev_integrated_angle = dir * motor.getIntegratedAngleRad();
     property.CurrentVelocity = rad2deg100(velocity / 10.0f);
     property.DesiredVelosity = rad2deg100(status.target_angle);
     
     status.target_total_angle += status.target_angle * 10 * period;
 //    float error = deg100_2rad(property.CurrentPosition) - status.target_angle;
 //    float error = status.target_total_angle - motor.getIntegratedAngleRad();
-    float error = status.target_total_angle - motor.getIntegratedAngleRad();
+    float error = status.target_total_angle - dir * motor.getIntegratedAngleRad();
 //    while(error > M_PI) error -= 2.0f * M_PI;
 //    while(error < -M_PI) error += 2.0f * M_PI;
     status.err_i += error * 0.001f;
@@ -532,12 +534,12 @@ int main(void)
 
         if (count % 200 == 0){
           float ratio = motor;
-          float integrated_angle = motor.getIntegratedAngleRad();
+          float integrated_angle = dir * motor.getIntegratedAngleRad();
           float rot = (integrated_angle - prev_integrated_angle) / (2.0f * M_PI) / 0.2f * 32.0f;
           prev_integrated_angle = integrated_angle;
           char buf[100];
           sprintf(buf, "%f %f %f %f %d\r\n", ratio, rot, motor.getHoleStateInitAngle(), angle_sensor.getAngleRad(), prev_hole_state);
-    //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, motor.getIntegratedAngleRad()/29, prev_hole_state);
+    //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, dir * motor.getIntegratedAngleRad()/29, prev_hole_state);
     //      sprintf(buf, "%f %f %f %d\r\n", ratio, rot, as5600.getAngleRad(), prev_hole_state);
           int c = rs485.getc();
     //      int len = rs485.read(command_data, MAX_COMMAND_LEN);
